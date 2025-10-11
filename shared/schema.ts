@@ -9,7 +9,10 @@ export const userRoleEnum = pgEnum("user_role", ["admin", "doctor", "student", "
 export const genderEnum = pgEnum("gender", ["male", "female", "other"]);
 export const maritalStatusEnum = pgEnum("marital_status", ["single", "married", "divorced", "widowed"]);
 export const serviceStatusEnum = pgEnum("service_status", ["pending", "in_progress", "completed", "cancelled"]);
-export const quizStatusEnum = pgEnum("quiz_status", ["draft", "active", "archived"]);
+export const quizStatusEnum = pgEnum("quiz_status", ["draft", "active", "completed", "archived"]);
+export const quizDifficultyEnum = pgEnum("quiz_difficulty", ["beginner", "intermediate", "advanced"]);
+export const quizTypeEnum = pgEnum("quiz_type", ["free", "paid", "live", "practice"]);
+export const quizSessionStatusEnum = pgEnum("quiz_session_status", ["waiting", "running", "finished"]);
 
 // Users table
 export const users = pgTable("users", {
@@ -164,28 +167,37 @@ export const masterclassBookings = pgTable("masterclass_bookings", {
   bookedAt: timestamp("booked_at").defaultNow(),
 });
 
-// Quizzes table
+// Quizzes table - Enhanced for real-time quiz system
 export const quizzes = pgTable("quizzes", {
   id: serial("id").primaryKey(),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
-  timeLimit: integer("time_limit"), // in minutes
+  category: varchar("category", { length: 100 }), // Specialty
+  difficulty: quizDifficultyEnum("difficulty").default("beginner"),
+  type: quizTypeEnum("type").default("free"),
+  totalQuestions: integer("total_questions").default(0),
+  questionTime: integer("question_time").default(30), // seconds per question
+  duration: integer("duration"), // Total seconds (calculated or custom)
   passingScore: integer("passing_score").default(60), // percentage
-  status: quizStatusEnum("status").default("active"),
-  certificateTemplate: text("certificate_template"),
+  entryFee: integer("entry_fee").default(0), // in paise/cents
+  rewardInfo: text("reward_info"), // Prize details
+  certificateType: varchar("certificate_type", { length: 100 }),
+  startTime: timestamp("start_time"),
+  endTime: timestamp("end_time"),
+  status: quizStatusEnum("status").default("draft"),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Quiz questions table
+// Quiz questions table - Enhanced with JSONB options and images
 export const quizQuestions = pgTable("quiz_questions", {
   id: serial("id").primaryKey(),
   quizId: integer("quiz_id").references(() => quizzes.id).notNull(),
   questionText: text("question_text").notNull(),
-  optionA: text("option_a").notNull(),
-  optionB: text("option_b").notNull(),
-  optionC: text("option_c").notNull(),
-  optionD: text("option_d").notNull(),
+  image: text("image"), // Optional question image
+  options: text("options").notNull(), // JSONB stored as text: {"A":"...","B":"...","C":"...","D":"..."}
   correctOption: varchar("correct_option", { length: 1 }).notNull(), // A, B, C, or D
+  marks: integer("marks").default(1),
   orderIndex: integer("order_index").default(0),
 });
 
@@ -200,6 +212,54 @@ export const quizAttempts = pgTable("quiz_attempts", {
   passed: boolean("passed").default(false),
   certificateIssued: boolean("certificate_issued").default(false),
   attemptedAt: timestamp("attempted_at").defaultNow(),
+});
+
+// Quiz sessions table - For real-time quiz sessions
+export const quizSessions = pgTable("quiz_sessions", {
+  id: serial("id").primaryKey(),
+  quizId: integer("quiz_id").references(() => quizzes.id).notNull(),
+  currentQuestion: integer("current_question").default(0), // Question index
+  startedAt: timestamp("started_at"),
+  status: quizSessionStatusEnum("status").default("waiting"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Quiz responses table - Individual question responses
+export const quizResponses = pgTable("quiz_responses", {
+  id: serial("id").primaryKey(),
+  quizId: integer("quiz_id").references(() => quizzes.id).notNull(),
+  questionId: integer("question_id").references(() => quizQuestions.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  selectedOption: varchar("selected_option", { length: 1 }), // A, B, C, or D
+  isCorrect: boolean("is_correct").default(false),
+  responseTime: integer("response_time"), // seconds taken to answer
+  score: integer("score").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Quiz leaderboard table - Final rankings
+export const quizLeaderboard = pgTable("quiz_leaderboard", {
+  id: serial("id").primaryKey(),
+  quizId: integer("quiz_id").references(() => quizzes.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  totalScore: integer("total_score").default(0),
+  avgTime: integer("avg_time"), // Average response time in seconds
+  rank: integer("rank"),
+  certificateUrl: text("certificate_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Certificates table - All certificates (quiz, course, etc.)
+export const certificates = pgTable("certificates", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  quizId: integer("quiz_id").references(() => quizzes.id),
+  courseId: integer("course_id").references(() => courses.id),
+  type: varchar("type", { length: 50 }), // 'quiz', 'course', etc.
+  certificateUrl: text("certificate_url"),
+  sent: boolean("sent").default(false),
+  sentAt: timestamp("sent_at"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Jobs table
@@ -308,6 +368,10 @@ export const enrollmentsRelations = relations(enrollments, ({ one }) => ({
 export const quizzesRelations = relations(quizzes, ({ many }) => ({
   questions: many(quizQuestions),
   attempts: many(quizAttempts),
+  sessions: many(quizSessions),
+  responses: many(quizResponses),
+  leaderboard: many(quizLeaderboard),
+  certificates: many(certificates),
 }));
 
 export const quizQuestionsRelations = relations(quizQuestions, ({ one }) => ({
@@ -325,6 +389,54 @@ export const quizAttemptsRelations = relations(quizAttempts, ({ one }) => ({
   quiz: one(quizzes, {
     fields: [quizAttempts.quizId],
     references: [quizzes.id],
+  }),
+}));
+
+export const quizSessionsRelations = relations(quizSessions, ({ one }) => ({
+  quiz: one(quizzes, {
+    fields: [quizSessions.quizId],
+    references: [quizzes.id],
+  }),
+}));
+
+export const quizResponsesRelations = relations(quizResponses, ({ one }) => ({
+  quiz: one(quizzes, {
+    fields: [quizResponses.quizId],
+    references: [quizzes.id],
+  }),
+  question: one(quizQuestions, {
+    fields: [quizResponses.questionId],
+    references: [quizQuestions.id],
+  }),
+  user: one(users, {
+    fields: [quizResponses.userId],
+    references: [users.id],
+  }),
+}));
+
+export const quizLeaderboardRelations = relations(quizLeaderboard, ({ one }) => ({
+  quiz: one(quizzes, {
+    fields: [quizLeaderboard.quizId],
+    references: [quizzes.id],
+  }),
+  user: one(users, {
+    fields: [quizLeaderboard.userId],
+    references: [users.id],
+  }),
+}));
+
+export const certificatesRelations = relations(certificates, ({ one }) => ({
+  user: one(users, {
+    fields: [certificates.userId],
+    references: [users.id],
+  }),
+  quiz: one(quizzes, {
+    fields: [certificates.quizId],
+    references: [quizzes.id],
+  }),
+  course: one(courses, {
+    fields: [certificates.courseId],
+    references: [courses.id],
   }),
 }));
 
@@ -399,6 +511,7 @@ export const insertMasterclassSchema = createInsertSchema(masterclasses).omit({
 export const insertQuizSchema = createInsertSchema(quizzes).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
 });
 
 export const insertQuizQuestionSchema = createInsertSchema(quizQuestions).omit({
@@ -408,6 +521,26 @@ export const insertQuizQuestionSchema = createInsertSchema(quizQuestions).omit({
 export const insertQuizAttemptSchema = createInsertSchema(quizAttempts).omit({
   id: true,
   attemptedAt: true,
+});
+
+export const insertQuizSessionSchema = createInsertSchema(quizSessions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertQuizResponseSchema = createInsertSchema(quizResponses).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertQuizLeaderboardSchema = createInsertSchema(quizLeaderboard).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertCertificateSchema = createInsertSchema(certificates).omit({
+  id: true,
+  createdAt: true,
 });
 
 export const insertJobSchema = createInsertSchema(jobs).omit({
