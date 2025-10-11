@@ -54,12 +54,16 @@ export default function Login() {
 
   const verifyOtpMutation = useMutation({
     mutationFn: (data: { phone: string; otp: string }) => apiRequest('POST', '/api/auth/verify-otp', data),
-    onSuccess: () => {
+    onSuccess: (data: any) => {
+      // Store user info in sessionStorage
+      if (data.user) {
+        sessionStorage.setItem('user', JSON.stringify(data.user));
+      }
       toast({
         title: 'Success',
         description: 'Login successful!',
       });
-      window.location.href = '/dashboard';
+      window.location.href = '/';
     },
     onError: () => {
       toast({

@@ -9,6 +9,7 @@ import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { getAuthenticatedUserId } from '@/lib/auth';
 
 export default function AITools() {
   const { toast } = useToast();
@@ -20,38 +21,80 @@ export default function AITools() {
   const [clinicalResult, setClinicalResult] = useState('');
 
   const diagnosticMutation = useMutation({
-    mutationFn: (data: { input: string }) => 
-      apiRequest('POST', '/api/ai-tools/diagnostic', { toolType: 'diagnostic_helper', inputData: data.input }),
+    mutationFn: (data: { input: string }) => {
+      try {
+        return apiRequest('POST', '/api/ai-tools/diagnostic', { 
+          userId: getAuthenticatedUserId(),
+          toolType: 'diagnostic_helper', 
+          inputData: data.input 
+        });
+      } catch (error) {
+        toast({ title: 'Authentication Required', description: 'Please login to use AI tools', variant: 'destructive' });
+        throw error;
+      }
+    },
     onSuccess: (data) => {
       setDiagnosticResult(data.output);
       toast({ title: 'Analysis Complete', description: 'AI diagnostic suggestions generated' });
     },
-    onError: () => {
-      toast({ title: 'Error', description: 'Failed to process request', variant: 'destructive' });
+    onError: (error: any) => {
+      if (error.message?.includes('authenticated')) {
+        window.location.href = '/login';
+      } else {
+        toast({ title: 'Error', description: 'Failed to process request', variant: 'destructive' });
+      }
     },
   });
 
   const statsMutation = useMutation({
-    mutationFn: (data: { input: string }) => 
-      apiRequest('POST', '/api/ai-tools/stats', { toolType: 'stats_calculator', inputData: data.input }),
+    mutationFn: (data: { input: string }) => {
+      try {
+        return apiRequest('POST', '/api/ai-tools/stats', { 
+          userId: getAuthenticatedUserId(),
+          toolType: 'stats_calculator', 
+          inputData: data.input 
+        });
+      } catch (error) {
+        toast({ title: 'Authentication Required', description: 'Please login to use AI tools', variant: 'destructive' });
+        throw error;
+      }
+    },
     onSuccess: (data) => {
       setStatsResult(data.output);
       toast({ title: 'Calculation Complete', description: 'Statistical analysis generated' });
     },
-    onError: () => {
-      toast({ title: 'Error', description: 'Failed to process request', variant: 'destructive' });
+    onError: (error: any) => {
+      if (error.message?.includes('authenticated')) {
+        window.location.href = '/login';
+      } else {
+        toast({ title: 'Error', description: 'Failed to process request', variant: 'destructive' });
+      }
     },
   });
 
   const clinicalMutation = useMutation({
-    mutationFn: (data: { input: string }) => 
-      apiRequest('POST', '/api/ai-tools/clinical-notes', { toolType: 'clinical_notes', inputData: data.input }),
+    mutationFn: (data: { input: string }) => {
+      try {
+        return apiRequest('POST', '/api/ai-tools/clinical-notes', { 
+          userId: getAuthenticatedUserId(),
+          toolType: 'clinical_notes', 
+          inputData: data.input 
+        });
+      } catch (error) {
+        toast({ title: 'Authentication Required', description: 'Please login to use AI tools', variant: 'destructive' });
+        throw error;
+      }
+    },
     onSuccess: (data) => {
       setClinicalResult(data.output);
       toast({ title: 'Notes Generated', description: 'Clinical notes created successfully' });
     },
-    onError: () => {
-      toast({ title: 'Error', description: 'Failed to process request', variant: 'destructive' });
+    onError: (error: any) => {
+      if (error.message?.includes('authenticated')) {
+        window.location.href = '/login';
+      } else {
+        toast({ title: 'Error', description: 'Failed to process request', variant: 'destructive' });
+      }
     },
   });
 

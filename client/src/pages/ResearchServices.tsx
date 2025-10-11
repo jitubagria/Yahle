@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { getAuthenticatedUserId } from '@/lib/auth';
 
 const requestSchema = z.object({
   serviceType: z.string().min(1, 'Please select a service type'),
@@ -40,15 +41,29 @@ export default function ResearchServices() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => apiRequest('POST', '/api/research-services/requests', data),
+    mutationFn: (data: any) => {
+      try {
+        return apiRequest('POST', '/api/research-services/requests', { 
+          ...data,
+          userId: getAuthenticatedUserId()
+        });
+      } catch (error) {
+        toast({ title: 'Authentication Required', description: 'Please login to submit requests', variant: 'destructive' });
+        throw error;
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/research-services/requests'] });
       toast({ title: 'Success', description: 'Research service request submitted' });
       setIsDialogOpen(false);
       form.reset();
     },
-    onError: () => {
-      toast({ title: 'Error', description: 'Failed to submit request', variant: 'destructive' });
+    onError: (error: any) => {
+      if (error.message?.includes('authenticated')) {
+        window.location.href = '/login';
+      } else {
+        toast({ title: 'Error', description: 'Failed to submit request', variant: 'destructive' });
+      }
     },
   });
 
