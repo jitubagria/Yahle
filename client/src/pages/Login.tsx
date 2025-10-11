@@ -37,6 +37,8 @@ export default function Login() {
   const sendOtpMutation = useMutation({
     mutationFn: (data: { phone: string }) => apiRequest('POST', '/api/auth/send-otp', data),
     onSuccess: () => {
+      // Reset OTP form to blank state
+      otpForm.reset({ otp: '' });
       setStep('otp');
       toast({
         title: 'OTP Sent',
@@ -168,7 +170,10 @@ export default function Login() {
                     type="button"
                     variant="ghost"
                     className="w-full"
-                    onClick={() => setStep('phone')}
+                    onClick={() => {
+                      otpForm.reset({ otp: '' });
+                      setStep('phone');
+                    }}
                     data-testid="button-back"
                   >
                     Change Phone Number
