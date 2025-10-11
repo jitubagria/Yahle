@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { db } from "./db";
 import { users, doctorProfiles, courses, quizzes, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, insertUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema } from "@shared/schema";
 import { eq, like, or, and, sql } from "drizzle-orm";
+import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
@@ -572,6 +573,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Get hospitals error:", error);
       res.status(500).json({ error: "Failed to fetch hospitals" });
+    }
+  });
+
+  // ===== OBJECT STORAGE ROUTES =====
+  // Endpoint to get presigned upload URL and object path
+  app.post("/api/objects/upload", async (req, res) => {
+    try {
+      const objectStorageService = new ObjectStorageService();
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      
+      // Extract object path from upload URL for ACL setting
+      const url = new URL(uploadURL);
+      const objectPath = objectStorageService.normalizeObjectEntityPath(url.pathname);
+      
+      res.json({ uploadURL, objectPath });
+    } catch (error) {
+      console.error("Upload URL error:", error);
+      res.status(500).json({ error: "Failed to get upload URL" });
+    }
+  });
+
+  // Endpoint to set ACL for profile images
+  app.put("/api/profile-images", async (req, res) => {
+    try {
+      const { userId, imagePaths } = req.body;
+      if (!userId || !imagePaths) {
+        return res.status(400).json({ error: "userId and imagePaths are required" });
+      }
+
+      const objectStorageService = new ObjectStorageService();
+
+      // Set ACL policy for each image path
+      for (const [key, path] of Object.entries(imagePaths)) {
+        await objectStorageService.trySetObjectEntityAclPolicy(
+          path as string,
+          {
+            owner: userId.toString(),
+            visibility: "public", // Profile images are public
+          }
+        );
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Set profile images error:", error);
+      res.status(500).json({ error: "Failed to set profile images" });
+    }
+  });
+
+  // Endpoint to serve objects with ACL check
+  app.get("/objects/:objectPath(*)", async (req, res) => {
+    try {
+      const objectStorageService = new ObjectStorageService();
+      const objectFile = await objectStorageService.getObjectEntityFile(req.path);
+      
+      // For now, just serve the file - ACL check can be added for private files
+      objectStorageService.downloadObject(objectFile, res);
+    } catch (error) {
+      console.error("Object access error:", error);
+      if (error instanceof ObjectNotFoundError) {
+        return res.sendStatus(404);
+      }
+      return res.sendStatus(500);
     }
   });
 

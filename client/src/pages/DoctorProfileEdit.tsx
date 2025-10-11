@@ -103,12 +103,55 @@ export default function DoctorProfileEdit() {
     }
   };
 
-  const handleCropComplete = (images: { profile_pic: string; thumbl: string; thumbs: string; thumbimage: string }) => {
-    form.setValue('profilePic', images.profile_pic);
-    form.setValue('thumbl', images.thumbl);
-    form.setValue('thumbs', images.thumbs);
-    form.setValue('thumbimage', images.thumbimage);
-    setShowCropper(false);
+  const handleCropComplete = async (images: { profile_pic: string; thumbl: string; thumbs: string; thumbimage: string }) => {
+    try {
+      const uploadedPaths: any = {};
+      const userId = doctor?.userId;
+      
+      if (!userId) {
+        toast({ title: 'Error', description: 'User session not found. Please log in again.', variant: 'destructive' });
+        return;
+      }
+      
+      // Upload each image size to object storage
+      for (const [key, base64] of Object.entries(images)) {
+        // Get upload URL and object path
+        const uploadResponse = await apiRequest('POST', '/api/objects/upload', {});
+        const { uploadURL, objectPath } = uploadResponse;
+        
+        // Convert base64 to blob
+        const blob = await fetch(base64).then(r => r.blob());
+        
+        // Upload to object storage
+        await fetch(uploadURL, {
+          method: 'PUT',
+          body: blob,
+          headers: {
+            'Content-Type': 'image/jpeg',
+          },
+        });
+        
+        uploadedPaths[key] = objectPath;
+      }
+      
+      // Set ACL policy for all uploaded images
+      await apiRequest('PUT', '/api/profile-images', {
+        userId,
+        imagePaths: uploadedPaths,
+      });
+      
+      // Update form with storage paths
+      form.setValue('profilePic', uploadedPaths.profile_pic);
+      form.setValue('thumbl', uploadedPaths.thumbl);
+      form.setValue('thumbs', uploadedPaths.thumbs);
+      form.setValue('thumbimage', uploadedPaths.thumbimage);
+      
+      setShowCropper(false);
+      toast({ title: 'Success', description: 'Images uploaded successfully' });
+    } catch (error) {
+      console.error('Image upload error:', error);
+      toast({ title: 'Error', description: 'Failed to upload images', variant: 'destructive' });
+    }
   };
 
   if (isLoading) {
