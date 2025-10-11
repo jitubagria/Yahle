@@ -1,11 +1,29 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { db } from "./db";
-import { users, doctorProfiles, courses, quizzes, quizQuestions, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, enrollments, insertUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema } from "@shared/schema";
+import { users, doctorProfiles, courses, quizzes, quizQuestions, quizSessions, quizResponses, quizLeaderboard, certificates, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, enrollments, insertUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertQuizSessionSchema, insertQuizResponseSchema, insertQuizLeaderboardSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema } from "@shared/schema";
 import { eq, like, or, and, sql } from "drizzle-orm";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { bigtosService } from "./bigtos";
 import { requireAuth, requireAdmin, getAuthenticatedUser } from "./auth";
+import { z } from "zod";
+
+// Helper function to recalculate quiz leaderboard ranks with tie-breaking
+async function recalculateQuizRanks(quizId: number) {
+  const result = await db.execute(sql`
+    UPDATE quiz_leaderboard
+    SET rank = subquery.new_rank
+    FROM (
+      SELECT id, ROW_NUMBER() OVER (
+        ORDER BY total_score DESC, created_at ASC
+      ) as new_rank
+      FROM quiz_leaderboard
+      WHERE quiz_id = ${quizId}
+    ) AS subquery
+    WHERE quiz_leaderboard.id = subquery.id
+  `);
+  return result;
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
@@ -321,7 +339,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/quiz-questions", async (req, res) => {
+  app.get("/api/quiz-questions", requireAuth, async (req, res) => {
     try {
       const quizId = parseInt(req.query.quizId as string);
       
@@ -340,9 +358,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/quizzes/:quizId/submit", async (req, res) => {
+  app.post("/api/quizzes/:quizId/submit", requireAuth, async (req, res) => {
     try {
       const quizId = parseInt(req.params.quizId);
+      const user = getAuthenticatedUser(req);
       const validated = quizSubmissionSchema.parse(req.body);
 
       const [quiz] = await db.select().from(quizzes).where(eq(quizzes.id, quizId)).limit(1);
@@ -355,7 +374,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const [attempt] = await db.insert(quizAttempts)
         .values({
-          userId: validated.userId,
+          userId: user.id, // Use authenticated user ID
           quizId,
           score: validated.score,
           totalQuestions: validated.totalQuestions,
@@ -372,22 +391,271 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/quizzes/:quizId/leaderboard", async (req, res) => {
+  app.get("/api/quizzes/:quizId/leaderboard", requireAuth, async (req, res) => {
     try {
       const quizId = parseInt(req.params.quizId);
       
-      const leaderboard = await db.execute(
-        sql`SELECT qa.*, u.phone FROM quiz_attempts qa 
-            JOIN users u ON qa.user_id = u.id 
-            WHERE qa.quiz_id = ${quizId} 
-            ORDER BY qa.score DESC, qa.time_taken ASC 
-            LIMIT 100`
-      );
+      const leaderboard = await db.select()
+        .from(quizLeaderboard)
+        .where(eq(quizLeaderboard.quizId, quizId))
+        .orderBy(sql`rank ASC`)
+        .limit(100);
 
-      res.json(leaderboard.rows);
+      res.json(leaderboard);
     } catch (error) {
       console.error("Get leaderboard error:", error);
       res.status(500).json({ error: "Failed to fetch leaderboard" });
+    }
+  });
+
+  // Create quiz (admin only)
+  app.post("/api/quizzes", requireAdmin, async (req, res) => {
+    try {
+      const validated = insertQuizSchema.parse(req.body);
+      
+      const [newQuiz] = await db.insert(quizzes)
+        .values(validated)
+        .returning();
+
+      res.json(newQuiz);
+    } catch (error) {
+      console.error("Create quiz error:", error);
+      res.status(400).json({ error: "Failed to create quiz" });
+    }
+  });
+
+  // Update quiz (admin only)
+  app.put("/api/quizzes/:id", requireAdmin, async (req, res) => {
+    try {
+      const quizId = parseInt(req.params.id);
+      
+      // Validate update data with dedicated schema for updates
+      const quizUpdateSchema = z.object({
+        title: z.string().max(255).optional(),
+        description: z.string().optional(),
+        category: z.string().max(100).optional(),
+        difficulty: z.enum(['beginner', 'intermediate', 'advanced']).optional(),
+        type: z.enum(['free', 'paid', 'live', 'practice']).optional(),
+        totalQuestions: z.number().int().min(0).optional(),
+        questionTime: z.number().int().min(1).optional(),
+        duration: z.number().int().min(0).optional(),
+        passingScore: z.number().int().min(0).max(100).optional(),
+        entryFee: z.number().int().min(0).optional(),
+        rewardInfo: z.string().optional(),
+        certificateType: z.string().max(100).optional(),
+        startTime: z.string().datetime().optional().or(z.date().optional()),
+        endTime: z.string().datetime().optional().or(z.date().optional()),
+        status: z.enum(['draft', 'active', 'completed', 'archived']).optional(),
+      }).strict();
+      
+      const validated = quizUpdateSchema.parse(req.body);
+      
+      const [updatedQuiz] = await db.update(quizzes)
+        .set({ ...validated, updatedAt: new Date() })
+        .where(eq(quizzes.id, quizId))
+        .returning();
+
+      if (!updatedQuiz) {
+        return res.status(404).json({ error: "Quiz not found" });
+      }
+
+      res.json(updatedQuiz);
+    } catch (error) {
+      console.error("Update quiz error:", error);
+      res.status(400).json({ error: "Failed to update quiz" });
+    }
+  });
+
+  // Join quiz (create session participation)
+  app.post("/api/quizzes/:id/join", requireAuth, async (req, res) => {
+    try {
+      const quizId = parseInt(req.params.id);
+      const user = getAuthenticatedUser(req);
+
+      const [quiz] = await db.select()
+        .from(quizzes)
+        .where(eq(quizzes.id, quizId))
+        .limit(1);
+
+      if (!quiz) {
+        return res.status(404).json({ error: "Quiz not found" });
+      }
+
+      // Check if user already joined
+      const existing = await db.select()
+        .from(quizLeaderboard)
+        .where(and(
+          eq(quizLeaderboard.quizId, quizId),
+          eq(quizLeaderboard.userId, user.id)
+        ))
+        .limit(1);
+
+      if (existing.length > 0) {
+        return res.json({ success: true, message: "Already joined", alreadyJoined: true });
+      }
+
+      // Create leaderboard entry
+      const [entry] = await db.insert(quizLeaderboard)
+        .values({
+          quizId,
+          userId: user.id,
+          totalScore: 0,
+          rank: 0
+        })
+        .returning();
+
+      res.json({ success: true, entry });
+    } catch (error) {
+      console.error("Join quiz error:", error);
+      res.status(500).json({ error: "Failed to join quiz" });
+    }
+  });
+
+  // Submit answer for real-time quiz
+  app.post("/api/quizzes/:quizId/responses", requireAuth, async (req, res) => {
+    try {
+      const quizId = parseInt(req.params.quizId);
+      const user = getAuthenticatedUser(req);
+      const { questionId, selectedOption, responseTime } = req.body;
+
+      // Get the question to check correct answer
+      const [question] = await db.select()
+        .from(quizQuestions)
+        .where(eq(quizQuestions.id, questionId))
+        .limit(1);
+
+      if (!question) {
+        return res.status(404).json({ error: "Question not found" });
+      }
+
+      const isCorrect = question.correctOption === selectedOption;
+      const score = isCorrect ? (question.marks || 1) : 0;
+
+      // Save response
+      const [response] = await db.insert(quizResponses)
+        .values({
+          quizId,
+          questionId,
+          userId: user.id,
+          selectedOption,
+          isCorrect,
+          responseTime,
+          score
+        })
+        .returning();
+
+      // Update leaderboard score
+      await db.execute(sql`
+        UPDATE quiz_leaderboard 
+        SET total_score = total_score + ${score}
+        WHERE user_id = ${user.id} AND quiz_id = ${quizId}
+      `);
+
+      // Recalculate ranks
+      await recalculateQuizRanks(quizId);
+
+      res.json({ success: true, response, isCorrect, score });
+    } catch (error) {
+      console.error("Submit response error:", error);
+      res.status(500).json({ error: "Failed to submit response" });
+    }
+  });
+
+  // Get quiz session
+  app.get("/api/quizzes/:id/session", requireAuth, async (req, res) => {
+    try {
+      const quizId = parseInt(req.params.id);
+
+      const result = await db.execute(sql`
+        SELECT * FROM quiz_sessions
+        WHERE quiz_id = ${quizId}
+        ORDER BY id DESC
+        LIMIT 1
+      `);
+
+      const session = result.rows[0] || null;
+
+      res.json({ session });
+    } catch (error) {
+      console.error("Get session error:", error);
+      res.status(500).json({ error: "Failed to fetch session" });
+    }
+  });
+
+  // Start quiz session (admin only)
+  app.post("/api/quizzes/:id/start", requireAdmin, async (req, res) => {
+    try {
+      const quizId = parseInt(req.params.id);
+
+      const [quiz] = await db.select()
+        .from(quizzes)
+        .where(eq(quizzes.id, quizId))
+        .limit(1);
+
+      if (!quiz) {
+        return res.status(404).json({ error: "Quiz not found" });
+      }
+
+      // Create new session
+      const [session] = await db.insert(quizSessions)
+        .values({
+          quizId,
+          currentQuestion: 0,
+          startedAt: new Date(),
+          status: 'running'
+        })
+        .returning();
+
+      // Update quiz status
+      await db.update(quizzes)
+        .set({ status: 'active' })
+        .where(eq(quizzes.id, quizId));
+
+      res.json({ success: true, session });
+    } catch (error) {
+      console.error("Start quiz error:", error);
+      res.status(500).json({ error: "Failed to start quiz" });
+    }
+  });
+
+  // Get quiz result for user
+  app.get("/api/quizzes/:quizId/result/:userId", requireAuth, async (req, res) => {
+    try {
+      const quizId = parseInt(req.params.quizId);
+      const userId = parseInt(req.params.userId);
+      const currentUser = getAuthenticatedUser(req);
+
+      // Only allow users to see their own results (unless admin)
+      if (currentUser.id !== userId && currentUser.role !== 'admin') {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const [result] = await db.select()
+        .from(quizLeaderboard)
+        .where(and(
+          eq(quizLeaderboard.quizId, quizId),
+          eq(quizLeaderboard.userId, userId)
+        ))
+        .limit(1);
+
+      if (!result) {
+        return res.status(404).json({ error: "Result not found" });
+      }
+
+      // Get quiz details
+      const [quiz] = await db.select()
+        .from(quizzes)
+        .where(eq(quizzes.id, quizId))
+        .limit(1);
+
+      // Calculate if passed: compare percentage score against passing percentage
+      const percentage = quiz?.totalQuestions ? (result.totalScore / quiz.totalQuestions) * 100 : 0;
+      const passed = percentage >= (quiz?.passingScore || 60);
+
+      res.json({ ...result, passed, percentage, quiz });
+    } catch (error) {
+      console.error("Get result error:", error);
+      res.status(500).json({ error: "Failed to fetch result" });
     }
   });
 

@@ -1,0 +1,345 @@
+Perfect — now let’s extend your **DocsUniverse course system** with a modern, scalable **course flow (React + Node.js + PostgreSQL)** that parallels your quiz engine — but for **learning, progress tracking, and certificate generation**.
+
+---
+
+# 🎓 DOCSUNIVERSE COURSE MODULE — COMPLETE FLOW & DATABASE PLAN (for Replit + PostgreSQL)
+
+---
+
+## 🧩 1️⃣ OVERVIEW
+
+| Aspect                          | Description                                                                                                               |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **Purpose**                     | Allow doctors/students to enroll, learn modules, track progress, complete lessons, and automatically receive certificates |
+| **Frontend**                    | React (Next.js / Vite) + Tailwind CSS                                                                                     |
+| **Backend**                     | Node.js + Express + TypeScript                                                                                            |
+| **Database**                    | PostgreSQL via Prisma ORM                                                                                                 |
+| **Storage**                     | Cloudinary / Supabase (for PDFs, images, video links)                                                                     |
+| **Certificate Generation**      | Puppeteer HTML-to-PDF + BigTos WhatsApp send                                                                              |
+| **Payments (for Paid Courses)** | Razorpay / Stripe                                                                                                         |
+| **Progress Tracking**           | Table to track lesson completion per user                                                                                 |
+| **Communication**               | BigTos API notifications (Enroll, Reminder, Completion)                                                                   |
+
+---
+
+## 🧱 2️⃣ DATABASE DESIGN (POSTGRESQL)
+
+Below is your existing `courses` table (adjusted for modern schema, consistent defaults, and relationships).
+
+### 🧮 Table: `courses`
+
+| Column           | Type                    | Description                          |
+| ---------------- | ----------------------- | ------------------------------------ |
+| id               | SERIAL PRIMARY KEY      | Unique ID                            |
+| title            | VARCHAR(255) NOT NULL   | Course title                         |
+| description      | TEXT                    | Summary                              |
+| instructor       | VARCHAR(255)            | Instructor name                      |
+| duration         | INTEGER                 | Total duration (in hours or minutes) |
+| price            | INTEGER DEFAULT 0       | Price in ₹                           |
+| thumbnail_image  | TEXT                    | Image URL                            |
+| enrollment_count | INTEGER DEFAULT 0       | Auto-updated                         |
+| is_active        | BOOLEAN DEFAULT TRUE    | Publish/unpublish toggle             |
+| created_at       | TIMESTAMP DEFAULT now() |                                      |
+| updated_at       | TIMESTAMP DEFAULT now() |                                      |
+
+---
+
+### 🧩 New Tables for Complete Functionality
+
+#### `course_modules`
+
+Defines chapters or lessons under each course.
+
+| Column       | Type                              | Description         |
+| ------------ | --------------------------------- | ------------------- |
+| id           | SERIAL PRIMARY KEY                |                     |
+| course_id    | INT REFERENCES courses(id)        | Parent course       |
+| title        | VARCHAR(255)                      | Lesson/module title |
+| content_type | ENUM('video','pdf','text','quiz') | Type                |
+| content_url  | TEXT                              | File/Video link     |
+| order_no     | INT                               | Module order        |
+| duration     | INTEGER                           | Time in minutes     |
+| is_preview   | BOOLEAN DEFAULT FALSE             | Free preview        |
+| created_at   | TIMESTAMP DEFAULT now()           |                     |
+
+---
+
+#### `course_enrollments`
+
+Tracks which user has joined which course.
+
+| Column                | Type                           | Description        |
+| --------------------- | ------------------------------ | ------------------ |
+| id                    | SERIAL PRIMARY KEY             |                    |
+| user_id               | UUID REFERENCES users(id)      | Enrolled user      |
+| course_id             | INT REFERENCES courses(id)     | Linked course      |
+| enrolled_at           | TIMESTAMP DEFAULT now()        | Date/time          |
+| progress              | INTEGER DEFAULT 0              | % completion       |
+| payment_status        | ENUM('free','paid','refunded') |                    |
+| payment_id            | VARCHAR(100)                   | Razorpay reference |
+| certificate_generated | BOOLEAN DEFAULT FALSE          |                    |
+
+---
+
+#### `course_progress`
+
+Tracks per-module completion for enrolled users.
+
+| Column        | Type                                  | Description     |
+| ------------- | ------------------------------------- | --------------- |
+| id            | SERIAL PRIMARY KEY                    |                 |
+| enrollment_id | INT REFERENCES course_enrollments(id) | Enrollment link |
+| module_id     | INT REFERENCES course_modules(id)     | Module link     |
+| completed     | BOOLEAN DEFAULT FALSE                 | Status          |
+| completed_at  | TIMESTAMP                             |                 |
+
+---
+
+#### `course_certificates`
+
+Stores generated certificate info.
+
+| Column          | Type                       | Description |
+| --------------- | -------------------------- | ----------- |
+| id              | SERIAL PRIMARY KEY         |             |
+| user_id         | UUID REFERENCES users(id)  |             |
+| course_id       | INT REFERENCES courses(id) |             |
+| certificate_url | TEXT                       | Link to PDF |
+| issued_at       | TIMESTAMP DEFAULT now()    |             |
+| sent_whatsapp   | BOOLEAN DEFAULT FALSE      | via BigTos  |
+
+---
+
+## ⚙️ 3️⃣ COURSE FLOW (USER JOURNEY)
+
+---
+
+### 🪜 Step 1: Browse / Discover
+
+**URL:** `/courses`
+
+* Grid view of all active courses (`is_active = TRUE`)
+* Filters: *Category / Duration / Free / Paid / Instructor*
+* Card includes:
+
+  * Title
+  * Instructor
+  * Duration
+  * Price (₹ or “Free”)
+  * Enrolled count
+  * Button: **“View Details”**
+
+---
+
+### 🧭 Step 2: Course Details Page
+
+**URL:** `/courses/:id`
+
+Sections:
+
+1. Banner: Thumbnail + Title + Instructor
+2. Description
+3. Duration, Price, Modules count
+4. “Enroll Now” Button
+5. Free Preview Lessons (if any)
+6. WhatsApp Enroll Confirmation via BigTos
+
+On **Enroll Now**:
+
+* If free → create enrollment directly.
+* If paid → redirect to Razorpay → webhook confirms → create enrollment.
+
+---
+
+### 🎬 Step 3: Learning Dashboard
+
+**URL:** `/dashboard/courses/:id`
+
+Tabs:
+`Overview | Modules | Notes | Certificates`
+
+* Sidebar shows list of all modules with completion ticks.
+* Video/text/PDF content loads dynamically in main pane.
+* “Mark as Completed” button on each module.
+
+**Progress Update:**
+
+```js
+PATCH /api/courses/:id/progress
+{ module_id: 5, completed: true }
+```
+
+Backend updates:
+
+* `course_progress` → mark completed
+* `course_enrollments.progress` → recalc %
+
+---
+
+### 🎯 Step 4: Course Completion
+
+When progress reaches 100%:
+
+1. Trigger certificate generation (Puppeteer template → PDF).
+
+2. Upload to Cloudinary → store URL in `course_certificates`.
+
+3. Send WhatsApp via BigTos:
+
+   > “🎓 Congratulations {{name}}, you’ve completed {{course_title}}! Download your certificate here: {{url}}”
+
+4. Mark `certificate_generated = TRUE`.
+
+---
+
+### 🧾 Step 5: Certificate Dashboard
+
+**URL:** `/dashboard/certificates`
+
+Table view:
+
+| Course             | Date        | Certificate   | Action               |
+| ------------------ | ----------- | ------------- | -------------------- |
+| Medical Statistics | 14 Oct 2025 | View/Download | 🟢 Sent via WhatsApp |
+
+---
+
+## 🧮 4️⃣ ADMIN DASHBOARD (COURSE MANAGEMENT)
+
+### Sidebar Structure
+
+```
+Admin → Courses
+  ├── All Courses
+  ├── Create New Course
+  ├── Modules (Lessons)
+  ├── Enrollments
+  ├── Certificates
+  └── Reports
+```
+
+### Features
+
+#### A. Course Builder
+
+* Create/edit course with title, duration, description, price, thumbnail.
+* Upload via admin form or import via CSV.
+* Toggle Active/Inactive.
+
+#### B. Add Modules
+
+* Add lessons (video, PDF, text, quiz links).
+* Drag-drop order.
+* Set preview flag.
+
+#### C. Enrollments View
+
+* Filter by course, date, or user.
+* Track progress per user (% bar).
+* Resend certificates manually.
+
+#### D. Reports & Analytics
+
+* Total Enrollments
+* Completion Rate (%)
+* Revenue from Paid Courses
+* Certificates Issued
+* Top Instructors
+
+Charts via Chart.js in admin dashboard.
+
+---
+
+## 📡 5️⃣ API ENDPOINTS
+
+| Method | Endpoint                       | Description                    |
+| ------ | ------------------------------ | ------------------------------ |
+| GET    | `/api/courses`                 | List all active courses        |
+| GET    | `/api/courses/:id`             | Get single course with modules |
+| POST   | `/api/courses`                 | Create new course (admin)      |
+| PATCH  | `/api/courses/:id`             | Update details                 |
+| GET    | `/api/courses/:id/modules`     | Fetch lessons                  |
+| POST   | `/api/courses/:id/enroll`      | Enroll user                    |
+| PATCH  | `/api/courses/:id/progress`    | Mark module completed          |
+| GET    | `/api/courses/:id/certificate` | Fetch/download certificate     |
+| POST   | `/api/courses/:id/certificate` | Generate new certificate       |
+| GET    | `/api/admin/reports/courses`   | Course analytics (admin)       |
+
+---
+
+## 🧠 6️⃣ FRONTEND PAGES (React)
+
+| Page                  | Path                         | Description                   |
+| --------------------- | ---------------------------- | ----------------------------- |
+| All Courses           | `/courses`                   | Public listing                |
+| Course Details        | `/courses/:id`               | Preview & enroll              |
+| Dashboard: My Courses | `/dashboard/courses`         | User’s enrollments            |
+| Learning Screen       | `/dashboard/courses/:id`     | Watch modules & mark progress |
+| Certificates          | `/dashboard/certificates`    | Completed certificates        |
+| Admin Courses         | `/admin/courses`             | Manage catalog                |
+| Admin Modules         | `/admin/courses/:id/modules` | CRUD lessons                  |
+
+---
+
+## 🧮 7️⃣ CERTIFICATE TEMPLATE VARIABLES
+
+**Template Fields:**
+
+```html
+<div>
+  <h2>Certificate of Completion</h2>
+  <p>This certifies that <strong>{{name}}</strong></p>
+  <p>has successfully completed the <strong>{{course_title}}</strong> course</p>
+  <p>on {{date}} under the guidance of {{instructor}}</p>
+  <p>Duration: {{duration}} hrs</p>
+</div>
+```
+
+**Stored in `/templates/certificates/course.html`**
+Generated PDF → stored in `/uploads/certificates/{course_id}/{user_id}.pdf`.
+
+---
+
+## 🔔 8️⃣ AUTOMATED WHATSAPP MESSAGES (Bigtos)
+
+| Event        | Message                                    | API                   |
+| ------------ | ------------------------------------------ | --------------------- |
+| Enrollment   | “You’re enrolled in {{course}}.”           | `/sendmessage`        |
+| 50% Progress | “You’ve reached halfway!”                  | `/sendmessage`        |
+| Completion   | “Congrats, certificate attached.”          | `/sendmessage`        |
+| Reminder     | “Haven’t finished yet? Continue learning!” | `/send-bulk-messages` |
+
+---
+
+## 💡 9️⃣ USER DASHBOARD ENHANCEMENTS
+
+| Section           | Addition                                       |
+| ----------------- | ---------------------------------------------- |
+| Courses           | Progress bar for each course                   |
+| Certificates      | Centralized download + share button            |
+| Notifications     | WhatsApp + in-app reminders                    |
+| My Learning Stats | Total hours learned, total certificates earned |
+
+---
+
+## 📊 10️⃣ ADMIN ANALYTICS DASHBOARD
+
+Widgets:
+
+* Total Courses
+* Total Enrollments
+* Active Learners
+* Completion Rate
+* Revenue
+* Certificates Sent
+* Course Leaderboard (Top 5 courses by enrollments)
+
+---
+
+✅ **Result:**
+This system enables **end-to-end online learning** — from enrollment to progress tracking to certificate delivery — using a clean **React + Node.js + PostgreSQL** architecture ready for Replit hosting and API-based integrations.
+
+---
+
+Would you like me to next create a **diagram** (user flow + database relations + API flow for single course completion and certificate issuance)?
+It will visually link `courses → modules → enrollment → progress → certificate`.
