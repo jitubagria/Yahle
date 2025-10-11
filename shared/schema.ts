@@ -13,6 +13,8 @@ export const quizStatusEnum = pgEnum("quiz_status", ["draft", "active", "complet
 export const quizDifficultyEnum = pgEnum("quiz_difficulty", ["beginner", "intermediate", "advanced"]);
 export const quizTypeEnum = pgEnum("quiz_type", ["free", "paid", "live", "practice"]);
 export const quizSessionStatusEnum = pgEnum("quiz_session_status", ["waiting", "running", "finished"]);
+export const contentTypeEnum = pgEnum("content_type", ["video", "pdf", "text", "quiz"]);
+export const paymentStatusEnum = pgEnum("payment_status", ["free", "paid", "refunded"]);
 
 // Users table
 export const users = pgTable("users", {
@@ -139,7 +141,41 @@ export const enrollments = pgTable("enrollments", {
   progress: integer("progress").default(0), // percentage 0-100
   completedAt: timestamp("completed_at"),
   certificateIssued: boolean("certificate_issued").default(false),
+  paymentStatus: paymentStatusEnum("payment_status").default("free"),
+  paymentId: varchar("payment_id", { length: 100 }),
   enrolledAt: timestamp("enrolled_at").defaultNow(),
+});
+
+// Course Modules table - lessons/chapters within courses
+export const courseModules = pgTable("course_modules", {
+  id: serial("id").primaryKey(),
+  courseId: integer("course_id").references(() => courses.id).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  contentType: contentTypeEnum("content_type").notNull(),
+  contentUrl: text("content_url"),
+  orderNo: integer("order_no").notNull(),
+  duration: integer("duration"), // in minutes
+  isPreview: boolean("is_preview").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Course Progress table - tracks module completion per enrollment
+export const courseProgress = pgTable("course_progress", {
+  id: serial("id").primaryKey(),
+  enrollmentId: integer("enrollment_id").references(() => enrollments.id).notNull(),
+  moduleId: integer("module_id").references(() => courseModules.id).notNull(),
+  completed: boolean("completed").default(false),
+  completedAt: timestamp("completed_at"),
+});
+
+// Course Certificates table
+export const courseCertificates = pgTable("course_certificates", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  courseId: integer("course_id").references(() => courses.id).notNull(),
+  certificateUrl: text("certificate_url"),
+  issuedAt: timestamp("issued_at").defaultNow(),
+  sentWhatsapp: boolean("sent_whatsapp").default(false),
 });
 
 // Masterclasses table
@@ -503,6 +539,20 @@ export const insertEnrollmentSchema = createInsertSchema(enrollments).omit({
   enrolledAt: true,
 });
 
+export const insertCourseModuleSchema = createInsertSchema(courseModules).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertCourseProgressSchema = createInsertSchema(courseProgress).omit({
+  id: true,
+});
+
+export const insertCourseCertificateSchema = createInsertSchema(courseCertificates).omit({
+  id: true,
+  issuedAt: true,
+});
+
 export const insertMasterclassSchema = createInsertSchema(masterclasses).omit({
   id: true,
   createdAt: true,
@@ -636,6 +686,15 @@ export type InsertCourse = z.infer<typeof insertCourseSchema>;
 
 export type Enrollment = typeof enrollments.$inferSelect;
 export type InsertEnrollment = z.infer<typeof insertEnrollmentSchema>;
+
+export type CourseModule = typeof courseModules.$inferSelect;
+export type InsertCourseModule = z.infer<typeof insertCourseModuleSchema>;
+
+export type CourseProgress = typeof courseProgress.$inferSelect;
+export type InsertCourseProgress = z.infer<typeof insertCourseProgressSchema>;
+
+export type CourseCertificate = typeof courseCertificates.$inferSelect;
+export type InsertCourseCertificate = z.infer<typeof insertCourseCertificateSchema>;
 
 export type Masterclass = typeof masterclasses.$inferSelect;
 export type InsertMasterclass = z.infer<typeof insertMasterclassSchema>;
