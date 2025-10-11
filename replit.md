@@ -49,10 +49,14 @@ Preferred communication style: Simple, everyday language.
 - Simple OTP verification without external SMS service (development mode returns OTP in response)
 
 **Authentication & Authorization**
-- Phone-based OTP authentication stored in user records
-- Session-based auth using session storage on client
-- User roles: admin, doctor, student, service_provider
-- Authentication helper functions (`getAuthenticatedUserId`) for protected routes
+- **Phone-based OTP authentication** via WhatsApp (BigTos API)
+- **Development Mode**: Fixed OTP `123456` for testing (no API key required)
+- **Production Mode**: Random 6-digit OTP sent via WhatsApp
+- **Session Management**: express-session with HttpOnly secure cookies
+- **Session Storage**: In-memory store for development (MemoryStore), upgradeable to Redis/PostgreSQL for production
+- **User Roles**: admin, doctor, student, service_provider
+- **Protected Routes**: requireAuth middleware validates server-side sessions
+- **Security**: No client-side ID spoofing, session-based user verification
 
 **Database Layer**
 - **Drizzle ORM** for type-safe database operations
@@ -61,11 +65,16 @@ Preferred communication style: Simple, everyday language.
 - Migration system using drizzle-kit
 
 **Data Models**
-- Users with role-based access
-- Comprehensive doctor profiles (50+ fields covering general, contact, academic, professional data)
-- Courses, quizzes, jobs, masterclasses, research service requests
-- Application/booking/attempt tracking tables
-- Hospital directory
+- **Users** with role-based access and OTP verification
+- **Doctor Profiles** (50+ fields: general, contact, academic, professional data)
+- **Courses** with enrollment tracking
+- **Quizzes** with timed attempts, scoring, and certificate notifications
+- **Jobs** with application tracking
+- **Masterclasses** with booking system
+- **Research Service Requests** with status tracking
+- **AI Tool Requests** for medical AI features
+- **Hospital Directory**
+- **BigTos Messages Log** - tracks all WhatsApp notifications sent
 
 ### Storage Architecture
 
@@ -86,6 +95,12 @@ Preferred communication style: Simple, everyday language.
 - **Neon Database** - Serverless Postgres hosting with WebSocket support
 - **Google Cloud Storage** - Object storage via Replit sidecar authentication
 - **Replit Object Storage** - Sidecar service for GCS credential management
+- **BigTos WhatsApp API** - WhatsApp Business API for OTP delivery and notifications
+  - OTP delivery for login authentication
+  - Course enrollment confirmations
+  - Quiz completion certificates
+  - Masterclass booking confirmations
+  - Research service status updates
 
 **Key NPM Packages**
 - `@neondatabase/serverless` - Neon Postgres client with WebSocket support
@@ -96,6 +111,8 @@ Preferred communication style: Simple, everyday language.
 - `react-hook-form` & `@hookform/resolvers` - Form handling with Zod validation
 - `wouter` - Lightweight routing
 - `ws` - WebSocket library for Neon connection
+- `express-session` - Server-side session management
+- `memorystore` - In-memory session store for development
 
 **Development Tools**
 - `tsx` - TypeScript execution for development
@@ -107,3 +124,48 @@ Preferred communication style: Simple, everyday language.
 - HSL color system for light/dark mode support
 - Shadcn component variants (New York style)
 - Custom border radius and shadow tokens for Material Design feel
+
+## Development Setup
+
+### Environment Variables
+
+**Required for Production:**
+- `BIGTOS_API_KEY` - WhatsApp API key from BigTos dashboard
+- `SESSION_SECRET` - Secret key for session encryption
+- `DATABASE_URL` - PostgreSQL connection string (auto-configured on Replit)
+
+**Development Mode:**
+- Fixed OTP: `123456` (no BIGTOS_API_KEY needed)
+- WhatsApp messages logged to console and database (not sent)
+- Session secret defaults to 'dev-secret-change-in-production'
+
+### Testing Login Flow
+
+1. Navigate to `/login`
+2. Enter any 10-digit phone number (e.g., `9999999999`)
+3. Click "Send OTP"
+4. Enter OTP: `123456`
+5. Click "Verify OTP"
+6. Authenticated! Session established with secure HttpOnly cookie
+
+### WhatsApp Notifications
+
+The platform sends WhatsApp notifications for:
+- **OTP Delivery** - Login verification codes
+- **Course Enrollments** - Confirmation when user enrolls
+- **Quiz Completion** - Certificate and score notification
+- **Masterclass Bookings** - Booking confirmation with schedule
+- **Research Updates** - Status changes on research requests
+
+All notifications are logged in `bigtos_messages` table with delivery status.
+
+## Recent Changes (Latest)
+
+### WhatsApp Integration & Authentication (Completed)
+- ✅ BigTos WhatsApp API integration with development mode
+- ✅ Server-side session authentication with express-session
+- ✅ HttpOnly secure cookies (XSS prevention)
+- ✅ Protected notification endpoints with requireAuth middleware
+- ✅ Fixed OTP input field issues (type="text", autocomplete="off")
+- ✅ Form isolation with React keys to prevent state bleeding
+- ✅ Comprehensive message logging and error handling
