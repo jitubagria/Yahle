@@ -1,0 +1,86 @@
+<?php
+
+namespace App\Models;
+
+use CodeIgniter\Model;
+
+class BigtosMessageModel extends Model
+{
+    protected $table = 'log_bigtos_messages';
+    protected $primaryKey = 'id';
+    protected $allowedFields = ['mobile', 'message', 'image_url', 'type', 'api_response', 'status'];
+
+    private $apiKey;
+    private $apiUrl = 'https://www.cp.bigtos.com/api/v1/sendmessage';
+
+    public function __construct()
+    {
+        parent::__construct();
+        // It's best practice to load sensitive keys from environment variables.
+        $this->apiKey = getenv('BIGTOS_API_KEY') ?: 'UAI5ZVZGEBDOCSUNIVERSECOM4NKG0S1XQ';
+    }
+
+    /**
+     * Sends a text-only message.
+     */
+    public function sendText(string $mobile, string $message)
+    {
+        return $this->sendMessage($mobile, $message, 'Text');
+    }
+
+    /**
+     * Sends a message with an accompanying image.
+     */
+    public function sendTextImage(string $mobile, string $message, string $imageUrl)
+    {
+        return $this->sendMessage($mobile, $message, 'Image', $imageUrl);
+    }
+
+    /**
+     * Private helper to handle the cURL request to the Bigtos API.
+     */
+    private function sendMessage(string $mobile, string $message, string $type, ?string $imageUrl = null)
+    {
+        $postData = [
+            'key'      => $this->apiKey,
+            'mobileno' => $mobile,
+            'msg'      => $message,
+            'type'     => $type,
+        ];
+
+        if ($type === 'Image' && $imageUrl) {
+            $postData['File'] = $imageUrl;
+        }
+
+        $ch = curl_init($this->apiUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+        $response = curl_exec($ch);
+        $error = curl_error($ch);
+        curl_close($ch);
+
+        $this->logMessage($mobile, $message, $imageUrl, $type, $response, $error);
+
+        if ($error) {
+            log_message('error', 'Bigtos API Error: ' . $error);
+            return false;
+        }
+
+        return json_decode($response, true);
+    }
+
+    /**
+     * Logs the message transaction to the database.
+     */
+    private function logMessage(string $mobile, string $message, ?string $imageUrl, string $type, string $response, string $error)
+    {
+        $this->insert([
+            'mobile'       => $mobile,
+            'message'      => $message,
+            'image_url'    => $imageUrl,
+            'type'         => $type,
+            'api_response' => $response ?: $error,
+            'status'       => $error ? 'failed' : 'success',
+        ]);
+    }
+}

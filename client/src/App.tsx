@@ -11,6 +11,7 @@ import DoctorProfile from "@/pages/DoctorProfile";
 import DoctorProfileEdit from "@/pages/DoctorProfileEdit";
 import Courses from "@/pages/Courses";
 import Quizzes from "@/pages/Quizzes";
+import QuizTake from "@/pages/QuizTake";
 import Jobs from "@/pages/Jobs";
 import AITools from "@/pages/AITools";
 import ResearchServices from "@/pages/ResearchServices";
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/doctor/:id" component={DoctorProfile} />
       <Route path="/courses" component={Courses} />
       <Route path="/quizzes" component={Quizzes} />
+      <Route path="/quiz/:id" component={QuizTake} />
       <Route path="/jobs" component={Jobs} />
       <Route path="/ai-tools" component={AITools} />
       <Route path="/research-services" component={ResearchServices} />

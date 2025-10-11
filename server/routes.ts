@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { db } from "./db";
-import { users, doctorProfiles, courses, quizzes, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, insertUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema } from "@shared/schema";
+import { users, doctorProfiles, courses, quizzes, quizQuestions, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, insertUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema } from "@shared/schema";
 import { eq, like, or, and, sql } from "drizzle-orm";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 
@@ -212,6 +212,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Get quizzes error:", error);
       res.status(500).json({ error: "Failed to fetch quizzes" });
+    }
+  });
+
+  app.get("/api/quizzes/:id", async (req, res) => {
+    try {
+      const [quiz] = await db.select()
+        .from(quizzes)
+        .where(eq(quizzes.id, parseInt(req.params.id)))
+        .limit(1);
+
+      if (!quiz) {
+        return res.status(404).json({ error: "Quiz not found" });
+      }
+
+      res.json(quiz);
+    } catch (error) {
+      console.error("Get quiz error:", error);
+      res.status(500).json({ error: "Failed to fetch quiz" });
+    }
+  });
+
+  app.get("/api/quiz-questions", async (req, res) => {
+    try {
+      const quizId = parseInt(req.query.quizId as string);
+      
+      if (!quizId || isNaN(quizId)) {
+        return res.status(400).json({ error: "Valid quizId parameter is required" });
+      }
+
+      const questions = await db.select()
+        .from(quizQuestions)
+        .where(eq(quizQuestions.quizId, quizId));
+
+      res.json(questions);
+    } catch (error) {
+      console.error("Get quiz questions error:", error);
+      res.status(500).json({ error: "Failed to fetch quiz questions" });
     }
   });
 
