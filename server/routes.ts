@@ -3,8 +3,8 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import type { IncomingMessage } from "http";
 import { db } from "./db";
-import { users, doctorProfiles, courses, quizzes, quizQuestions, quizSessions, quizResponses, quizLeaderboard, certificates, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, enrollments, insertUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertQuizSessionSchema, insertQuizResponseSchema, insertQuizLeaderboardSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema } from "@shared/schema";
-import { eq, like, or, and, sql } from "drizzle-orm";
+import { users, doctorProfiles, courses, quizzes, quizQuestions, quizSessions, quizResponses, quizLeaderboard, certificates, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, enrollments, courseModules, courseProgress, courseCertificates, insertUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertQuizSessionSchema, insertQuizResponseSchema, insertQuizLeaderboardSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema, insertCourseModuleSchema, insertCourseProgressSchema, insertCourseCertificateSchema } from "@shared/schema";
+import { eq, like, or, and, sql, inArray } from "drizzle-orm";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { bigtosService } from "./bigtos";
 import { requireAuth, requireAdmin, getAuthenticatedUser } from "./auth";
@@ -310,6 +310,187 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Enroll course error:", error);
       res.status(500).json({ error: "Failed to enroll in course" });
+    }
+  });
+
+  // ===== COURSE MODULE ROUTES =====
+  // Get modules for a course
+  app.get("/api/courses/:id/modules", async (req, res) => {
+    try {
+      const courseId = parseInt(req.params.id);
+      if (isNaN(courseId)) {
+        return res.status(400).json({ error: "Invalid course ID" });
+      }
+
+      const modules = await db.select()
+        .from(courseModules)
+        .where(eq(courseModules.courseId, courseId))
+        .orderBy(courseModules.orderNo);
+      
+      res.json(modules);
+    } catch (error) {
+      console.error("Get modules error:", error);
+      res.status(500).json({ error: "Failed to fetch modules" });
+    }
+  });
+
+  // Create module (admin only)
+  app.post("/api/courses/:id/modules", requireAdmin, async (req, res) => {
+    try {
+      const courseId = parseInt(req.params.id);
+      if (isNaN(courseId)) {
+        return res.status(400).json({ error: "Invalid course ID" });
+      }
+
+      const validated = insertCourseModuleSchema.parse({ 
+        ...req.body, 
+        courseId 
+      });
+
+      const [module] = await db.insert(courseModules)
+        .values(validated)
+        .returning();
+
+      res.json(module);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation failed", details: error.errors });
+      }
+      console.error("Create module error:", error);
+      res.status(500).json({ error: "Failed to create module" });
+    }
+  });
+
+  // Update module (admin only)
+  app.patch("/api/courses/:courseId/modules/:moduleId", requireAdmin, async (req, res) => {
+    try {
+      const courseId = parseInt(req.params.courseId);
+      const moduleId = parseInt(req.params.moduleId);
+      
+      if (isNaN(courseId)) {
+        return res.status(400).json({ error: "Invalid course ID" });
+      }
+      if (isNaN(moduleId)) {
+        return res.status(400).json({ error: "Invalid module ID" });
+      }
+
+      const validated = insertCourseModuleSchema.partial().parse(req.body);
+
+      const [updated] = await db.update(courseModules)
+        .set(validated)
+        .where(and(
+          eq(courseModules.id, moduleId),
+          eq(courseModules.courseId, courseId)
+        ))
+        .returning();
+
+      if (!updated) {
+        return res.status(404).json({ error: "Module not found in this course" });
+      }
+
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation failed", details: error.errors });
+      }
+      console.error("Update module error:", error);
+      res.status(500).json({ error: "Failed to update module" });
+    }
+  });
+
+  // Delete module (admin only)
+  app.delete("/api/courses/:courseId/modules/:moduleId", requireAdmin, async (req, res) => {
+    try {
+      const courseId = parseInt(req.params.courseId);
+      const moduleId = parseInt(req.params.moduleId);
+      
+      if (isNaN(courseId)) {
+        return res.status(400).json({ error: "Invalid course ID" });
+      }
+      if (isNaN(moduleId)) {
+        return res.status(400).json({ error: "Invalid module ID" });
+      }
+
+      const [deleted] = await db.delete(courseModules)
+        .where(and(
+          eq(courseModules.id, moduleId),
+          eq(courseModules.courseId, courseId)
+        ))
+        .returning();
+
+      if (!deleted) {
+        return res.status(404).json({ error: "Module not found in this course" });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete module error:", error);
+      res.status(500).json({ error: "Failed to delete module" });
+    }
+  });
+
+  // Reorder modules (admin only)
+  app.patch("/api/courses/:id/modules/reorder", requireAdmin, async (req, res) => {
+    try {
+      const courseId = parseInt(req.params.id);
+      if (isNaN(courseId)) {
+        return res.status(400).json({ error: "Invalid course ID" });
+      }
+
+      // Validate moduleOrder with Zod schema
+      const moduleOrderSchema = z.array(z.object({
+        id: z.number().int().positive(),
+        orderNo: z.number().int().nonnegative()
+      }));
+
+      const { moduleOrder } = req.body;
+      const validated = moduleOrderSchema.parse(moduleOrder);
+
+      if (validated.length === 0) {
+        return res.status(400).json({ error: "moduleOrder cannot be empty" });
+      }
+
+      // Execute reorder within transaction
+      await db.transaction(async (tx) => {
+        // Verify all modules belong to this course
+        const moduleIds = validated.map(item => item.id);
+        const existingModules = await tx.select({ id: courseModules.id })
+          .from(courseModules)
+          .where(and(
+            eq(courseModules.courseId, courseId),
+            inArray(courseModules.id, moduleIds)
+          ));
+
+        if (existingModules.length !== validated.length) {
+          throw new Error("One or more module IDs not found in this course");
+        }
+
+        // Update each module's order
+        for (const item of validated) {
+          const result = await tx.update(courseModules)
+            .set({ orderNo: item.orderNo })
+            .where(and(
+              eq(courseModules.id, item.id),
+              eq(courseModules.courseId, courseId)
+            ))
+            .returning();
+
+          if (result.length === 0) {
+            throw new Error(`Module ${item.id} not found or not in course ${courseId}`);
+          }
+        }
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation failed", details: error.errors });
+      }
+      if (error instanceof Error && error.message.includes("not found")) {
+        return res.status(404).json({ error: error.message });
+      }
+      console.error("Reorder modules error:", error);
+      res.status(500).json({ error: "Failed to reorder modules" });
     }
   });
 
