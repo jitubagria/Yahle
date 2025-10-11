@@ -84,6 +84,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .set({ isVerified: true })
         .where(eq(users.id, user.id));
 
+      // Store userId in session
+      req.session.userId = user.id;
+      
       res.json({ success: true, user: { id: user.id, phone: user.phone, role: user.role } });
     } catch (error) {
       console.error("Verify OTP error:", error);
@@ -687,6 +690,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       return res.sendStatus(500);
     }
+  });
+
+  // Logout route
+  app.post("/api/auth/logout", (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ error: "Failed to logout" });
+      }
+      res.json({ success: true });
+    });
   });
 
   // ===== WHATSAPP NOTIFICATION ROUTES =====

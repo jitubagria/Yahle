@@ -3,16 +3,20 @@ import { db } from './db';
 import { users } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 
+// Extend session type to include userId
+declare module 'express-session' {
+  interface SessionData {
+    userId: number;
+  }
+}
+
 /**
  * Authentication middleware that validates user session
- * In a production app, this would check session cookies or JWT tokens
- * For now, we require a valid userId in the request header
+ * Checks server-side session for userId
  */
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   try {
-    // In production, this would extract userId from session cookie or JWT
-    // For now, require X-User-Id header (temporary for development)
-    const userId = req.headers['x-user-id'];
+    const userId = req.session.userId;
     
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
@@ -21,10 +25,12 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     // Verify user exists
     const [user] = await db.select()
       .from(users)
-      .where(eq(users.id, parseInt(userId as string)))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!user) {
+      // Clear invalid session
+      req.session.destroy(() => {});
       return res.status(401).json({ error: 'Invalid authentication' });
     }
 

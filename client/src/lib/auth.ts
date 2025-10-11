@@ -30,7 +30,18 @@ export function getAuthenticatedUser() {
   }
 }
 
-export function logout() {
-  sessionStorage.removeItem('user');
-  window.location.href = '/login';
+export async function logout() {
+  try {
+    // Call logout endpoint to clear server session
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+  } finally {
+    // Clear client-side session storage
+    sessionStorage.removeItem('user');
+    window.location.href = '/login';
+  }
 }

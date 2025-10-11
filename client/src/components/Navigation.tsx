@@ -1,12 +1,34 @@
 import { Link, useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
-import { Stethoscope, Menu, X } from 'lucide-react';
-import { useState } from 'react';
+import { Stethoscope, Menu, X, User, LogOut } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
+import { getAuthenticatedUser, logout } from '@/lib/auth';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export default function Navigation() {
   const [location] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    // Check authentication on mount and when storage changes
+    const checkAuth = () => {
+      const currentUser = getAuthenticatedUser();
+      setUser(currentUser);
+    };
+    
+    checkAuth();
+    
+    // Listen for storage changes (e.g., login/logout in another tab)
+    window.addEventListener('storage', checkAuth);
+    return () => window.removeEventListener('storage', checkAuth);
+  }, []);
 
   const navItems = [
     { href: '/', label: 'Home' },
@@ -50,9 +72,42 @@ export default function Navigation() {
 
           {/* Auth Buttons */}
           <div className="hidden md:flex items-center gap-2">
-            <Button variant="outline" data-testid="button-login" asChild>
-              <Link href="/login">Login</Link>
-            </Button>
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" data-testid="button-user-menu">
+                    <User className="w-4 h-4 mr-2" />
+                    {user.phone}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {user.role === 'doctor' && (
+                    <DropdownMenuItem asChild>
+                      <Link href={`/doctor/${user.id}/edit`}>
+                        <User className="w-4 h-4 mr-2" />
+                        Edit Profile
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  {user.role === 'admin' && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin">
+                        <User className="w-4 h-4 mr-2" />
+                        Admin Dashboard
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={logout} data-testid="button-logout">
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button variant="outline" data-testid="button-login" asChild>
+                <Link href="/login">Login</Link>
+              </Button>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -86,11 +141,43 @@ export default function Navigation() {
                 </Link>
               ))}
               <div className="flex gap-2 pt-4 border-t">
-                <Link href="/login" className="flex-1">
-                  <Button variant="outline" className="w-full" onClick={() => setMobileMenuOpen(false)}>
-                    Login
-                  </Button>
-                </Link>
+                {user ? (
+                  <>
+                    {user.role === 'doctor' && (
+                      <Link href={`/doctor/${user.id}/edit`} className="flex-1">
+                        <Button variant="outline" className="w-full" onClick={() => setMobileMenuOpen(false)}>
+                          <User className="w-4 h-4 mr-2" />
+                          Edit Profile
+                        </Button>
+                      </Link>
+                    )}
+                    {user.role === 'admin' && (
+                      <Link href="/admin" className="flex-1">
+                        <Button variant="outline" className="w-full" onClick={() => setMobileMenuOpen(false)}>
+                          Admin Dashboard
+                        </Button>
+                      </Link>
+                    )}
+                    <Button 
+                      variant="outline" 
+                      className="w-full" 
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        logout();
+                      }}
+                      data-testid="button-logout-mobile"
+                    >
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Logout ({user.phone})
+                    </Button>
+                  </>
+                ) : (
+                  <Link href="/login" className="flex-1">
+                    <Button variant="outline" className="w-full" onClick={() => setMobileMenuOpen(false)}>
+                      Login
+                    </Button>
+                  </Link>
+                )}
               </div>
             </div>
           </div>

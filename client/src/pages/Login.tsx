@@ -53,7 +53,10 @@ export default function Login() {
   });
 
   const verifyOtpMutation = useMutation({
-    mutationFn: (data: { phone: string; otp: string }) => apiRequest('POST', '/api/auth/verify-otp', data),
+    mutationFn: async (data: { phone: string; otp: string }) => {
+      const response = await apiRequest('POST', '/api/auth/verify-otp', data);
+      return response.json();
+    },
     onSuccess: (data: any) => {
       // Store user info in sessionStorage
       if (data.user) {
@@ -63,6 +66,7 @@ export default function Login() {
         title: 'Success',
         description: 'Login successful!',
       });
+      // Force page reload to update auth state
       window.location.href = '/';
     },
     onError: () => {
