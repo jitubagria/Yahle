@@ -16,6 +16,9 @@ import QuizTake from "@/pages/QuizTake";
 import Jobs from "@/pages/Jobs";
 import JobDetail from "@/pages/JobDetail";
 import AITools from "@/pages/AITools";
+import DiagnosisHelper from "@/pages/DiagnosisHelper";
+import MedicalStatistics from "@/pages/MedicalStatistics";
+import LiteratureSearch from "@/pages/LiteratureSearch";
 import ResearchServices from "@/pages/ResearchServices";
 import Masterclasses from "@/pages/Masterclasses";
 import AdminDashboard from "@/pages/AdminDashboard";
@@ -36,6 +39,9 @@ function Router() {
       <Route path="/jobs" component={Jobs} />
       <Route path="/job/:id" component={JobDetail} />
       <Route path="/ai-tools" component={AITools} />
+      <Route path="/ai-tools/diagnosis-helper" component={DiagnosisHelper} />
+      <Route path="/ai-tools/medical-statistics" component={MedicalStatistics} />
+      <Route path="/ai-tools/literature-search" component={LiteratureSearch} />
       <Route path="/research-services" component={ResearchServices} />
       <Route path="/masterclasses" component={Masterclasses} />
       <Route path="/admin" component={AdminDashboard} />
