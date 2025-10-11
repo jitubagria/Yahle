@@ -241,6 +241,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create course (admin only)
+  app.post("/api/courses", requireAdmin, async (req, res) => {
+    try {
+      const validated = insertCourseSchema.parse(req.body);
+      
+      const [newCourse] = await db.insert(courses)
+        .values(validated)
+        .returning();
+
+      res.json(newCourse);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation failed", details: error.errors });
+      }
+      console.error("Create course error:", error);
+      res.status(500).json({ error: "Failed to create course" });
+    }
+  });
+
+  // Update course (admin only)
+  app.put("/api/courses/:id", requireAdmin, async (req, res) => {
+    try {
+      const courseId = parseInt(req.params.id);
+      if (isNaN(courseId)) {
+        return res.status(400).json({ error: "Invalid course ID" });
+      }
+
+      const courseUpdateSchema = z.object({
+        title: z.string().max(255).optional(),
+        description: z.string().optional(),
+        category: z.string().max(100).optional(),
+        level: z.enum(['beginner', 'intermediate', 'advanced']).optional(),
+        duration: z.string().max(50).optional(),
+        price: z.number().int().min(0).optional(),
+        instructor: z.string().max(255).optional(),
+        imageUrl: z.string().optional(),
+        thumbnailImage: z.string().optional(),
+        syllabus: z.string().optional(),
+        prerequisites: z.string().optional(),
+        targetAudience: z.string().optional(),
+        learningObjectives: z.array(z.string()).optional(),
+        status: z.enum(['draft', 'published', 'archived']).optional(),
+      }).strict();
+      
+      const validated = courseUpdateSchema.parse(req.body);
+      
+      const [updatedCourse] = await db.update(courses)
+        .set({ ...validated, updatedAt: new Date() })
+        .where(eq(courses.id, courseId))
+        .returning();
+
+      if (!updatedCourse) {
+        return res.status(404).json({ error: "Course not found" });
+      }
+
+      res.json(updatedCourse);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation failed", details: error.errors });
+      }
+      console.error("Update course error:", error);
+      res.status(500).json({ error: "Failed to update course" });
+    }
+  });
+
+  // Delete course (admin only)
+  app.delete("/api/courses/:id", requireAdmin, async (req, res) => {
+    try {
+      const courseId = parseInt(req.params.id);
+      if (isNaN(courseId)) {
+        return res.status(400).json({ error: "Invalid course ID" });
+      }
+
+      const [deleted] = await db.delete(courses)
+        .where(eq(courses.id, courseId))
+        .returning();
+
+      if (!deleted) {
+        return res.status(404).json({ error: "Course not found" });
+      }
+
+      res.json({ success: true, deletedCourse: deleted });
+    } catch (error) {
+      console.error("Delete course error:", error);
+      res.status(500).json({ error: "Failed to delete course" });
+    }
+  });
+
   // ===== COURSE MODULE ROUTES =====
   // Get modules for a course
   app.get("/api/courses/:id/modules", async (req, res) => {
