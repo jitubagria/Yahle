@@ -687,6 +687,200 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== CERTIFICATE ROUTES =====
+  // Check course completion and generate certificate if eligible
+  app.post("/api/courses/:id/check-completion", requireAuth, async (req, res) => {
+    try {
+      const courseId = parseInt(req.params.id);
+      if (isNaN(courseId)) {
+        return res.status(400).json({ error: "Invalid course ID" });
+      }
+
+      const user = getAuthenticatedUser(req);
+
+      // Check if course exists
+      const [course] = await db.select()
+        .from(courses)
+        .where(eq(courses.id, courseId))
+        .limit(1);
+
+      if (!course) {
+        return res.status(404).json({ error: "Course not found" });
+      }
+
+      // Verify enrollment
+      const [enrollment] = await db.select()
+        .from(enrollments)
+        .where(and(
+          eq(enrollments.userId, user.id),
+          eq(enrollments.courseId, courseId)
+        ))
+        .limit(1);
+
+      if (!enrollment) {
+        return res.status(403).json({ error: "Not enrolled in this course" });
+      }
+
+      // Get all modules for this course
+      const modules = await db.select()
+        .from(courseModules)
+        .where(eq(courseModules.courseId, courseId));
+
+      if (modules.length === 0) {
+        return res.status(400).json({ error: "Course has no modules" });
+      }
+
+      // Get user's progress for all modules
+      const progress = await db.select()
+        .from(courseProgress)
+        .where(and(
+          eq(courseProgress.userId, user.id),
+          eq(courseProgress.courseId, courseId)
+        ));
+
+      // Check if all modules are completed
+      const completedModuleIds = progress
+        .filter(p => p.completed)
+        .map(p => p.moduleId);
+
+      const allModulesCompleted = modules.every(module => 
+        completedModuleIds.includes(module.id)
+      );
+
+      if (!allModulesCompleted) {
+        return res.json({
+          completed: false,
+          totalModules: modules.length,
+          completedModules: completedModuleIds.length,
+        });
+      }
+
+      // Check if certificate already exists or generate new one
+      // Database unique constraint on (userId, courseId) prevents duplicates
+      const [existingCertificate] = await db.select()
+        .from(courseCertificates)
+        .where(and(
+          eq(courseCertificates.userId, user.id),
+          eq(courseCertificates.courseId, courseId)
+        ))
+        .limit(1);
+
+      if (existingCertificate) {
+        return res.json({
+          completed: true,
+          certificateExists: true,
+          certificate: existingCertificate,
+          courseName: course?.title,
+        });
+      }
+
+      // Generate new certificate
+      const certificateNumber = `CERT-${Date.now()}-${user.id}-${courseId}`;
+      
+      let certificate;
+      try {
+        [certificate] = await db.insert(courseCertificates)
+          .values({
+            userId: user.id,
+            courseId,
+            certificateNumber,
+            certificateUrl: `/certificates/${certificateNumber}.pdf`, // Stub URL for now
+          })
+          .returning();
+
+        res.json({
+          completed: true,
+          certificateExists: false,
+          certificate,
+          courseName: course?.title,
+        });
+      } catch (insertError: any) {
+        // Handle unique constraint violation (race condition)
+        if (insertError?.code === '23505') { // PostgreSQL unique violation error code
+          const [cert] = await db.select()
+            .from(courseCertificates)
+            .where(and(
+              eq(courseCertificates.userId, user.id),
+              eq(courseCertificates.courseId, courseId)
+            ))
+            .limit(1);
+
+          return res.json({
+            completed: true,
+            certificateExists: true,
+            certificate: cert,
+            courseName: course?.title,
+          });
+        }
+        throw insertError; // Re-throw if it's not a unique violation
+      }
+    } catch (error) {
+      console.error("Check completion error:", error);
+      res.status(500).json({ error: "Failed to check course completion" });
+    }
+  });
+
+  // Get user's certificates
+  app.get("/api/certificates", requireAuth, async (req, res) => {
+    try {
+      const user = getAuthenticatedUser(req);
+
+      const userCertificates = await db.select({
+        id: courseCertificates.id,
+        certificateNumber: courseCertificates.certificateNumber,
+        certificateUrl: courseCertificates.certificateUrl,
+        issuedAt: courseCertificates.issuedAt,
+        courseId: courseCertificates.courseId,
+        courseTitle: courses.title,
+        courseDescription: courses.description,
+        courseImage: courses.imageUrl,
+      })
+        .from(courseCertificates)
+        .innerJoin(courses, eq(courseCertificates.courseId, courses.id))
+        .where(eq(courseCertificates.userId, user.id));
+
+      res.json(userCertificates);
+    } catch (error) {
+      console.error("Get certificates error:", error);
+      res.status(500).json({ error: "Failed to fetch certificates" });
+    }
+  });
+
+  // Get specific certificate details
+  app.get("/api/certificates/:certificateNumber", async (req, res) => {
+    try {
+      const { certificateNumber } = req.params;
+
+      const [certificate] = await db.select({
+        id: courseCertificates.id,
+        certificateNumber: courseCertificates.certificateNumber,
+        certificateUrl: courseCertificates.certificateUrl,
+        issuedAt: courseCertificates.issuedAt,
+        userId: courseCertificates.userId,
+        courseId: courseCertificates.courseId,
+        userName: users.fullName,
+        userPhone: users.phone,
+        courseTitle: courses.title,
+        courseDescription: courses.description,
+        courseDuration: courses.duration,
+      })
+        .from(courseCertificates)
+        .innerJoin(users, eq(courseCertificates.userId, users.id))
+        .innerJoin(courses, eq(courseCertificates.courseId, courses.id))
+        .where(eq(courseCertificates.certificateNumber, certificateNumber))
+        .limit(1);
+
+      if (!certificate) {
+        return res.status(404).json({ error: "Certificate not found" });
+      }
+
+      res.json(certificate);
+    } catch (error) {
+      console.error("Get certificate error:", error);
+      res.status(500).json({ error: "Failed to fetch certificate" });
+    }
+  });
+
   // ===== QUIZ ROUTES =====
   app.get("/api/quizzes", async (req, res) => {
     try {

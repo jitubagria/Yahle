@@ -173,10 +173,14 @@ export const courseCertificates = pgTable("course_certificates", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull(),
   courseId: integer("course_id").references(() => courses.id).notNull(),
+  certificateNumber: varchar("certificate_number", { length: 100 }).notNull().unique(),
   certificateUrl: text("certificate_url"),
   issuedAt: timestamp("issued_at").defaultNow(),
   sentWhatsapp: boolean("sent_whatsapp").default(false),
-});
+}, (table) => ({
+  // Unique constraint to prevent duplicate certificates for same user and course
+  uniqueUserCourse: sql`UNIQUE (user_id, course_id)`,
+}));
 
 // Masterclasses table
 export const masterclasses = pgTable("masterclasses", {
