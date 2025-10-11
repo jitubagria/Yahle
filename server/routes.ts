@@ -421,6 +421,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/jobs/:id", async (req, res) => {
+    try {
+      const [job] = await db.select()
+        .from(jobs)
+        .where(eq(jobs.id, parseInt(req.params.id)))
+        .limit(1);
+
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      res.json(job);
+    } catch (error) {
+      console.error("Get job error:", error);
+      res.status(500).json({ error: "Failed to fetch job" });
+    }
+  });
+
   app.post("/api/jobs", async (req, res) => {
     try {
       const validated = insertJobSchema.parse(req.body);

@@ -14,6 +14,7 @@ import CourseDetail from "@/pages/CourseDetail";
 import Quizzes from "@/pages/Quizzes";
 import QuizTake from "@/pages/QuizTake";
 import Jobs from "@/pages/Jobs";
+import JobDetail from "@/pages/JobDetail";
 import AITools from "@/pages/AITools";
 import ResearchServices from "@/pages/ResearchServices";
 import Masterclasses from "@/pages/Masterclasses";
@@ -33,6 +34,7 @@ function Router() {
       <Route path="/quizzes" component={Quizzes} />
       <Route path="/quiz/:id" component={QuizTake} />
       <Route path="/jobs" component={Jobs} />
+      <Route path="/job/:id" component={JobDetail} />
       <Route path="/ai-tools" component={AITools} />
       <Route path="/research-services" component={ResearchServices} />
       <Route path="/masterclasses" component={Masterclasses} />
