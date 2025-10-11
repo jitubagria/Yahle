@@ -241,78 +241,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/courses/enroll", async (req, res) => {
-    try {
-      const { courseId, userId } = req.body;
-
-      if (!courseId || !userId) {
-        return res.status(400).json({ error: "courseId and userId are required" });
-      }
-
-      // Check if already enrolled
-      const [existingEnrollment] = await db
-        .select()
-        .from(enrollments)
-        .where(
-          and(
-            eq(enrollments.courseId, courseId),
-            eq(enrollments.userId, userId)
-          )
-        )
-        .limit(1);
-
-      if (existingEnrollment) {
-        return res.status(400).json({ error: "Already enrolled in this course" });
-      }
-
-      // Create enrollment
-      const [enrollment] = await db
-        .insert(enrollments)
-        .values({ courseId, userId, progress: 0 })
-        .returning();
-
-      // Update enrollment count
-      await db
-        .update(courses)
-        .set({ 
-          enrollmentCount: sql`${courses.enrollmentCount} + 1` 
-        })
-        .where(eq(courses.id, courseId));
-
-      // Get course details for notification
-      const [course] = await db
-        .select()
-        .from(courses)
-        .where(eq(courses.id, courseId))
-        .limit(1);
-
-      // Get user details for notification
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, userId))
-        .limit(1);
-
-      // Send WhatsApp notification
-      if (course && user && user.phone) {
-        try {
-          await bigtosService.sendCourseEnrollmentNotification(
-            user.phone,
-            course.title
-          );
-        } catch (notifError) {
-          console.error("Failed to send enrollment notification:", notifError);
-          // Don't fail the enrollment if notification fails
-        }
-      }
-
-      res.json({ success: true, enrollment });
-    } catch (error) {
-      console.error("Enroll course error:", error);
-      res.status(500).json({ error: "Failed to enroll in course" });
-    }
-  });
-
   // ===== COURSE MODULE ROUTES =====
   // Get modules for a course
   app.get("/api/courses/:id/modules", async (req, res) => {
@@ -491,6 +419,271 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error("Reorder modules error:", error);
       res.status(500).json({ error: "Failed to reorder modules" });
+    }
+  });
+
+  // ===== ENROLLMENT ROUTES =====
+  // Enroll in a course (authenticated users)
+  app.post("/api/courses/:id/enroll", requireAuth, async (req, res) => {
+    try {
+      const courseId = parseInt(req.params.id);
+      if (isNaN(courseId)) {
+        return res.status(400).json({ error: "Invalid course ID" });
+      }
+
+      const user = getAuthenticatedUser(req);
+      
+      // Validate request body
+      const enrollmentSchema = z.object({
+        paymentStatus: z.enum(["free", "pending", "paid", "failed"]).default("free"),
+        amountPaid: z.number().nonnegative().optional(),
+        paymentMethod: z.string().optional(),
+      });
+
+      const validated = enrollmentSchema.parse(req.body);
+
+      // Check if course exists
+      const [course] = await db.select()
+        .from(courses)
+        .where(eq(courses.id, courseId))
+        .limit(1);
+
+      if (!course) {
+        return res.status(404).json({ error: "Course not found" });
+      }
+
+      // Check if already enrolled
+      const [existing] = await db.select()
+        .from(enrollments)
+        .where(and(
+          eq(enrollments.userId, user.id),
+          eq(enrollments.courseId, courseId)
+        ))
+        .limit(1);
+
+      if (existing) {
+        return res.status(400).json({ error: "Already enrolled in this course" });
+      }
+
+      // Create enrollment and update course enrollment count
+      const [enrollment] = await db.insert(enrollments)
+        .values({
+          userId: user.id,
+          courseId,
+          paymentStatus: validated.paymentStatus,
+          amountPaid: validated.amountPaid,
+          paymentMethod: validated.paymentMethod,
+        })
+        .returning();
+
+      // Update enrollment count
+      await db.update(courses)
+        .set({ 
+          enrollmentCount: sql`${courses.enrollmentCount} + 1` 
+        })
+        .where(eq(courses.id, courseId));
+
+      res.json(enrollment);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation failed", details: error.errors });
+      }
+      console.error("Enroll error:", error);
+      res.status(500).json({ error: "Failed to enroll in course" });
+    }
+  });
+
+  // Get user's enrollments
+  app.get("/api/enrollments", requireAuth, async (req, res) => {
+    try {
+      const user = getAuthenticatedUser(req);
+
+      const userEnrollments = await db.select({
+        id: enrollments.id,
+        courseId: enrollments.courseId,
+        paymentStatus: enrollments.paymentStatus,
+        amountPaid: enrollments.amountPaid,
+        paymentMethod: enrollments.paymentMethod,
+        enrolledAt: enrollments.enrolledAt,
+        courseTitle: courses.title,
+        courseDescription: courses.description,
+        courseImage: courses.imageUrl,
+        courseDuration: courses.duration,
+        coursePrice: courses.price,
+      })
+        .from(enrollments)
+        .innerJoin(courses, eq(enrollments.courseId, courses.id))
+        .where(eq(enrollments.userId, user.id));
+
+      res.json(userEnrollments);
+    } catch (error) {
+      console.error("Get enrollments error:", error);
+      res.status(500).json({ error: "Failed to fetch enrollments" });
+    }
+  });
+
+  // Get enrollment status for a specific course
+  app.get("/api/courses/:id/enrollment", requireAuth, async (req, res) => {
+    try {
+      const courseId = parseInt(req.params.id);
+      if (isNaN(courseId)) {
+        return res.status(400).json({ error: "Invalid course ID" });
+      }
+
+      const user = getAuthenticatedUser(req);
+
+      const [enrollment] = await db.select()
+        .from(enrollments)
+        .where(and(
+          eq(enrollments.userId, user.id),
+          eq(enrollments.courseId, courseId)
+        ))
+        .limit(1);
+
+      if (!enrollment) {
+        return res.status(404).json({ error: "Not enrolled in this course" });
+      }
+
+      res.json(enrollment);
+    } catch (error) {
+      console.error("Get enrollment error:", error);
+      res.status(500).json({ error: "Failed to fetch enrollment" });
+    }
+  });
+
+  // ===== COURSE PROGRESS ROUTES =====
+  // Get user's progress for a course
+  app.get("/api/courses/:id/progress", requireAuth, async (req, res) => {
+    try {
+      const courseId = parseInt(req.params.id);
+      if (isNaN(courseId)) {
+        return res.status(400).json({ error: "Invalid course ID" });
+      }
+
+      const user = getAuthenticatedUser(req);
+
+      // Verify enrollment
+      const [enrollment] = await db.select()
+        .from(enrollments)
+        .where(and(
+          eq(enrollments.userId, user.id),
+          eq(enrollments.courseId, courseId)
+        ))
+        .limit(1);
+
+      if (!enrollment) {
+        return res.status(403).json({ error: "Not enrolled in this course" });
+      }
+
+      // Get all progress records for this course
+      const progress = await db.select()
+        .from(courseProgress)
+        .where(and(
+          eq(courseProgress.userId, user.id),
+          eq(courseProgress.courseId, courseId)
+        ));
+
+      res.json(progress);
+    } catch (error) {
+      console.error("Get progress error:", error);
+      res.status(500).json({ error: "Failed to fetch progress" });
+    }
+  });
+
+  // Mark module as complete or update progress
+  app.post("/api/courses/:courseId/modules/:moduleId/progress", requireAuth, async (req, res) => {
+    try {
+      const courseId = parseInt(req.params.courseId);
+      const moduleId = parseInt(req.params.moduleId);
+
+      if (isNaN(courseId)) {
+        return res.status(400).json({ error: "Invalid course ID" });
+      }
+      if (isNaN(moduleId)) {
+        return res.status(400).json({ error: "Invalid module ID" });
+      }
+
+      const user = getAuthenticatedUser(req);
+
+      // Validate request body
+      const progressSchema = z.object({
+        completed: z.boolean().default(false),
+        progressPercentage: z.number().min(0).max(100).optional(),
+        lastPosition: z.string().optional(),
+      });
+
+      const validated = progressSchema.parse(req.body);
+
+      // Verify enrollment
+      const [enrollment] = await db.select()
+        .from(enrollments)
+        .where(and(
+          eq(enrollments.userId, user.id),
+          eq(enrollments.courseId, courseId)
+        ))
+        .limit(1);
+
+      if (!enrollment) {
+        return res.status(403).json({ error: "Not enrolled in this course" });
+      }
+
+      // Verify module belongs to course
+      const [module] = await db.select()
+        .from(courseModules)
+        .where(and(
+          eq(courseModules.id, moduleId),
+          eq(courseModules.courseId, courseId)
+        ))
+        .limit(1);
+
+      if (!module) {
+        return res.status(404).json({ error: "Module not found in this course" });
+      }
+
+      // Check if progress record exists
+      const [existing] = await db.select()
+        .from(courseProgress)
+        .where(and(
+          eq(courseProgress.userId, user.id),
+          eq(courseProgress.courseId, courseId),
+          eq(courseProgress.moduleId, moduleId)
+        ))
+        .limit(1);
+
+      let progress;
+      if (existing) {
+        // Update existing progress
+        [progress] = await db.update(courseProgress)
+          .set({
+            completed: validated.completed,
+            progressPercentage: validated.progressPercentage ?? existing.progressPercentage,
+            lastPosition: validated.lastPosition ?? existing.lastPosition,
+            completedAt: validated.completed ? new Date() : existing.completedAt,
+          })
+          .where(eq(courseProgress.id, existing.id))
+          .returning();
+      } else {
+        // Create new progress record
+        [progress] = await db.insert(courseProgress)
+          .values({
+            userId: user.id,
+            courseId,
+            moduleId,
+            completed: validated.completed,
+            progressPercentage: validated.progressPercentage ?? 0,
+            lastPosition: validated.lastPosition,
+            completedAt: validated.completed ? new Date() : null,
+          })
+          .returning();
+      }
+
+      res.json(progress);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation failed", details: error.errors });
+      }
+      console.error("Update progress error:", error);
+      res.status(500).json({ error: "Failed to update progress" });
     }
   });
 
