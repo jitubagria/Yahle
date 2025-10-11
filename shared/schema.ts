@@ -257,6 +257,18 @@ export const researchServiceRequests = pgTable("research_service_requests", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// BigTos WhatsApp messages log table
+export const bigtosMessages = pgTable("bigtos_messages", {
+  id: serial("id").primaryKey(),
+  mobile: varchar("mobile", { length: 20 }).notNull(),
+  message: text("message").notNull(),
+  imageUrl: text("image_url"),
+  type: varchar("type", { length: 20 }).notNull(), // Text or Image
+  apiResponse: text("api_response"),
+  status: varchar("status", { length: 20 }).notNull(), // success or failed
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ one, many }) => ({
   doctorProfile: one(doctorProfiles, {
@@ -424,6 +436,11 @@ export const insertMasterclassBookingSchema = createInsertSchema(masterclassBook
   bookedAt: true,
 });
 
+export const insertBigtosMessageSchema = createInsertSchema(bigtosMessages).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Additional validation schemas for API endpoints
 export const quizSubmissionSchema = z.object({
   userId: z.number(),
@@ -485,3 +502,6 @@ export type InsertResearchServiceRequest = z.infer<typeof insertResearchServiceR
 
 export type MasterclassBooking = typeof masterclassBookings.$inferSelect;
 export type InsertMasterclassBooking = z.infer<typeof insertMasterclassBookingSchema>;
+
+export type BigtosMessage = typeof bigtosMessages.$inferSelect;
+export type InsertBigtosMessage = z.infer<typeof insertBigtosMessageSchema>;

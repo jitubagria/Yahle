@@ -4,6 +4,7 @@ import { db } from "./db";
 import { users, doctorProfiles, courses, quizzes, quizQuestions, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, insertUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema } from "@shared/schema";
 import { eq, like, or, and, sql } from "drizzle-orm";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { bigtosService } from "./bigtos";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
@@ -37,8 +38,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // In production, send OTP via SMS. For development, just return success
-      res.json({ success: true, message: "OTP sent successfully", dev_otp: otpCode });
+      // Send OTP via BigTos WhatsApp
+      try {
+        await bigtosService.sendOTP(phone, otpCode);
+        res.json({ success: true, message: "OTP sent successfully via WhatsApp" });
+      } catch (whatsappError) {
+        console.error("WhatsApp send error:", whatsappError);
+        // Fallback: Still allow login with dev_otp in development
+        res.json({ 
+          success: true, 
+          message: "OTP generated (WhatsApp delivery failed)", 
+          dev_otp: process.env.NODE_ENV === 'development' ? otpCode : undefined 
+        });
+      }
     } catch (error) {
       console.error("Send OTP error:", error);
       res.status(500).json({ error: "Failed to send OTP" });
