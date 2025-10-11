@@ -1,5 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { WebSocketServer, WebSocket } from "ws";
+import type { IncomingMessage } from "http";
 import { db } from "./db";
 import { users, doctorProfiles, courses, quizzes, quizQuestions, quizSessions, quizResponses, quizLeaderboard, certificates, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, enrollments, insertUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertQuizSessionSchema, insertQuizResponseSchema, insertQuizLeaderboardSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema } from "@shared/schema";
 import { eq, like, or, and, sql } from "drizzle-orm";
@@ -7,6 +9,7 @@ import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { bigtosService } from "./bigtos";
 import { requireAuth, requireAdmin, getAuthenticatedUser } from "./auth";
 import { z } from "zod";
+import { sessionParser } from "./index";
 
 // Helper function to recalculate quiz leaderboard ranks with tie-breaking
 async function recalculateQuizRanks(quizId: number) {
@@ -1226,5 +1229,295 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+
+  // ===== WEBSOCKET SERVER FOR REAL-TIME QUIZ =====
+  const wss = new WebSocketServer({ noServer: true });
+
+  // Handle WebSocket upgrade with session verification
+  httpServer.on('upgrade', (req: IncomingMessage, socket, head) => {
+    if (req.url !== '/ws/quiz') {
+      socket.destroy();
+      return;
+    }
+
+    // Parse session from cookie
+    sessionParser(req as any, {} as any, async () => {
+      const session = (req as any).session;
+      
+      if (!session || !session.userId) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+
+      // Load authenticated user from database
+      const [user] = await db.select().from(users).where(eq(users.id, session.userId)).limit(1);
+      
+      if (!user) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+
+      // Attach verified user to request
+      (req as any).user = user;
+
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit('connection', ws, req);
+      });
+    });
+  });
+
+  // Store quiz rooms and participants
+  interface QuizClient {
+    ws: WebSocket;
+    userId: number;
+    quizId: number;
+    username: string;
+    role: string;
+  }
+
+  const quizRooms = new Map<number, Set<QuizClient>>();
+
+  wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
+    const user = (req as any).user; // Server-verified user from session
+    let currentClient: QuizClient | null = null;
+
+    ws.on("message", async (data: Buffer) => {
+      try {
+        const message = JSON.parse(data.toString());
+
+        switch (message.type) {
+          case "join":
+            // Join a quiz room using server-verified user
+            const { quizId } = message;
+            
+            if (!quizId) {
+              ws.send(JSON.stringify({ type: "error", message: "Quiz ID required" }));
+              return;
+            }
+
+            if (!quizRooms.has(quizId)) {
+              quizRooms.set(quizId, new Set());
+            }
+
+            currentClient = { 
+              ws, 
+              userId: user.id, 
+              quizId, 
+              username: user.phone || `User${user.id}`,
+              role: user.role 
+            };
+            quizRooms.get(quizId)!.add(currentClient);
+
+            // Broadcast participant count
+            const participantCount = quizRooms.get(quizId)!.size;
+            broadcast(quizId, {
+              type: "participant_update",
+              count: participantCount,
+              participants: Array.from(quizRooms.get(quizId)!).map(c => ({
+                userId: c.userId,
+                username: c.username,
+              })),
+            });
+            break;
+
+          case "start_quiz":
+            // Admin starts the quiz (server-verified admin only)
+            if (!currentClient) {
+              ws.send(JSON.stringify({ type: "error", message: "Must join quiz first" }));
+              return;
+            }
+            if (user.role === 'admin') {
+              broadcast(currentClient.quizId, {
+                type: "quiz_started",
+                timestamp: new Date().toISOString(),
+              });
+            } else {
+              ws.send(JSON.stringify({ type: "error", message: "Admin access required" }));
+            }
+            break;
+
+          case "broadcast_question":
+            // Admin broadcasts next question (server-verified admin only)
+            if (!currentClient) {
+              ws.send(JSON.stringify({ type: "error", message: "Must join quiz first" }));
+              return;
+            }
+            if (user.role === 'admin') {
+              const { questionData, questionNumber, timeLimit } = message;
+              broadcast(currentClient.quizId, {
+                type: "question",
+                questionNumber,
+                question: questionData,
+                timeLimit,
+                timestamp: new Date().toISOString(),
+              });
+            } else {
+              ws.send(JSON.stringify({ type: "error", message: "Admin access required" }));
+            }
+            break;
+
+          case "submit_answer":
+            // User submits an answer (using server-verified user ID)
+            const { questionId, selectedOption, correctAnswer, responseTime } = message;
+            
+            if (!currentClient) {
+              ws.send(JSON.stringify({ type: "error", message: "Not joined to quiz" }));
+              return;
+            }
+
+            // Calculate score (e.g., 10 points for correct answer)
+            const isCorrect = selectedOption === correctAnswer;
+            const score = isCorrect ? 10 : 0;
+
+            // Save response to database using server-verified user ID
+            await db.insert(quizResponses).values({
+              quizId: currentClient.quizId,
+              questionId,
+              userId: user.id, // Server-verified user ID
+              selectedOption,
+              isCorrect,
+              responseTime: responseTime || 0,
+              score,
+            });
+
+            // Update or create leaderboard entry using server-verified user ID
+            const [existingEntry] = await db
+              .select()
+              .from(quizLeaderboard)
+              .where(
+                and(
+                  eq(quizLeaderboard.quizId, currentClient.quizId),
+                  eq(quizLeaderboard.userId, user.id)
+                )
+              )
+              .limit(1);
+
+            if (existingEntry) {
+              // Update existing entry
+              await db
+                .update(quizLeaderboard)
+                .set({
+                  totalScore: (existingEntry.totalScore || 0) + score,
+                })
+                .where(eq(quizLeaderboard.id, existingEntry.id));
+            } else {
+              // Create new entry
+              await db.insert(quizLeaderboard).values({
+                quizId: currentClient.quizId,
+                userId: user.id, // Server-verified user ID
+                totalScore: score,
+              });
+            }
+
+            // Recalculate ranks
+            await recalculateQuizRanks(currentClient.quizId);
+
+            // Broadcast updated leaderboard
+            const leaderboardData = await db
+              .select()
+              .from(quizLeaderboard)
+              .where(eq(quizLeaderboard.quizId, currentClient.quizId))
+              .orderBy(sql`rank ASC`)
+              .limit(10);
+
+            broadcast(currentClient.quizId, {
+              type: "leaderboard_update",
+              leaderboard: leaderboardData,
+            });
+            break;
+
+          case "end_quiz":
+            // Admin ends the quiz (server-verified admin only)
+            if (!currentClient) {
+              ws.send(JSON.stringify({ type: "error", message: "Must join quiz first" }));
+              return;
+            }
+            if (user.role === 'admin') {
+              broadcast(currentClient.quizId, {
+                type: "quiz_ended",
+                timestamp: new Date().toISOString(),
+              });
+            } else {
+              ws.send(JSON.stringify({ type: "error", message: "Admin access required" }));
+            }
+            break;
+
+          case "timer_tick":
+            // Countdown timer update (server-verified admin only)
+            if (!currentClient) {
+              ws.send(JSON.stringify({ type: "error", message: "Must join quiz first" }));
+              return;
+            }
+            if (user.role === 'admin') {
+              const { secondsRemaining } = message;
+              broadcast(currentClient.quizId, {
+                type: "timer_update",
+                secondsRemaining,
+              });
+            } else {
+              ws.send(JSON.stringify({ type: "error", message: "Admin access required" }));
+            }
+            break;
+        }
+      } catch (error) {
+        console.error("WebSocket message error:", error);
+        ws.send(JSON.stringify({ type: "error", message: "Invalid message format" }));
+      }
+    });
+
+    ws.on("close", () => {
+      // Remove client from room
+      if (currentClient) {
+        const room = quizRooms.get(currentClient.quizId);
+        if (room) {
+          room.delete(currentClient);
+          
+          // Broadcast updated participant count
+          if (room.size > 0) {
+            broadcast(currentClient.quizId, {
+              type: "participant_update",
+              count: room.size,
+              participants: Array.from(room).map(c => ({
+                userId: c.userId,
+                username: c.username,
+              })),
+            });
+          }
+
+          // Clean up empty rooms
+          if (room.size === 0) {
+            quizRooms.delete(currentClient.quizId);
+          }
+        }
+        currentClient = null;
+      }
+    });
+
+    ws.on("error", (error) => {
+      console.error("WebSocket error:", error);
+      // Clean up on error
+      if (currentClient) {
+        const room = quizRooms.get(currentClient.quizId);
+        if (room) {
+          room.delete(currentClient);
+        }
+      }
+    });
+  });
+
+  function broadcast(quizId: number, message: any) {
+    const room = quizRooms.get(quizId);
+    if (room) {
+      const messageStr = JSON.stringify(message);
+      room.forEach((client) => {
+        if (client.ws.readyState === WebSocket.OPEN) {
+          client.ws.send(messageStr);
+        }
+      });
+    }
+  }
+
   return httpServer;
 }
