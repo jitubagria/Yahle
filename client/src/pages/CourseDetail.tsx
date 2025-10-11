@@ -1,15 +1,16 @@
-import { useParams } from 'wouter';
+import { useParams, useLocation } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { BookOpen, Clock, Users, Star, CheckCircle } from 'lucide-react';
+import { BookOpen, Clock, Users, Star, CheckCircle, PlayCircle, FileText, Video, FileQuestion, Lock } from 'lucide-react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { getAuthenticatedUser } from '@/lib/auth';
 
 export default function CourseDetail() {
   const { id } = useParams();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const user = getAuthenticatedUser();
 
@@ -17,14 +18,27 @@ export default function CourseDetail() {
     queryKey: ['/api/courses', id],
   });
 
+  // Check enrollment status
+  const { data: enrollment } = useQuery<any>({
+    queryKey: ['/api/courses', id, 'enrollment'],
+    enabled: !!user && !!id,
+  });
+
+  // Get course modules
+  const { data: modules = [] } = useQuery<any[]>({
+    queryKey: ['/api/courses', id, 'modules'],
+    enabled: !!id,
+  });
+
   const enrollMutation = useMutation({
     mutationFn: async () => {
       if (!user) {
         throw new Error('Please login to enroll');
       }
-      const response = await apiRequest('POST', '/api/courses/enroll', {
-        courseId: parseInt(id!),
-        userId: user.id,
+      const paymentStatus = course?.price === 0 ? 'free' : 'pending';
+      const response = await apiRequest('POST', `/api/courses/${id}/enroll`, {
+        paymentStatus,
+        amountPaid: course?.price === 0 ? 0 : undefined,
       });
       return response.json();
     },
@@ -33,7 +47,7 @@ export default function CourseDetail() {
         title: 'Success',
         description: 'Successfully enrolled in the course!',
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/courses', id] });
+      queryClient.invalidateQueries({ queryKey: ['/api/courses', id, 'enrollment'] });
     },
     onError: (error: Error) => {
       toast({
@@ -43,6 +57,19 @@ export default function CourseDetail() {
       });
     },
   });
+
+  const getModuleIcon = (contentType: string) => {
+    switch (contentType) {
+      case 'video':
+        return <Video className="w-4 h-4" />;
+      case 'pdf':
+        return <FileText className="w-4 h-4" />;
+      case 'quiz':
+        return <FileQuestion className="w-4 h-4" />;
+      default:
+        return <BookOpen className="w-4 h-4" />;
+    }
+  };
 
   if (isLoading) {
     return (
@@ -116,24 +143,53 @@ export default function CourseDetail() {
                 )}
               </div>
 
-              <div className="flex items-center gap-4">
-                {course.price !== undefined && (
-                  <div className="text-3xl font-bold">
-                    {course.price === 0 ? (
-                      <span className="text-green-600">Free</span>
-                    ) : (
-                      <span className="text-primary">₹{course.price}</span>
-                    )}
+              <div className="space-y-4">
+                {enrollment && (
+                  <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800" data-testid="enrollment-status">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    <div>
+                      <p className="font-medium text-green-900 dark:text-green-100" data-testid="text-enrollment-status">
+                        Enrolled
+                      </p>
+                      <p className="text-sm text-green-700 dark:text-green-300" data-testid="text-payment-status">
+                        {enrollment.paymentStatus === 'free' && 'Free access'}
+                        {enrollment.paymentStatus === 'paid' && `Paid ₹${enrollment.amountPaid}`}
+                        {enrollment.paymentStatus === 'pending' && 'Payment pending'}
+                      </p>
+                    </div>
                   </div>
                 )}
-                <Button 
-                  size="lg" 
-                  onClick={() => enrollMutation.mutate()}
-                  disabled={enrollMutation.isPending || !user}
-                  data-testid="button-enroll"
-                >
-                  {enrollMutation.isPending ? 'Enrolling...' : user ? 'Enroll Now' : 'Login to Enroll'}
-                </Button>
+
+                <div className="flex items-center gap-4">
+                  {course.price !== undefined && !enrollment && (
+                    <div className="text-3xl font-bold" data-testid="text-course-price">
+                      {course.price === 0 ? (
+                        <span className="text-green-600">Free</span>
+                      ) : (
+                        <span className="text-primary">₹{course.price}</span>
+                      )}
+                    </div>
+                  )}
+                  {enrollment ? (
+                    <Button 
+                      size="lg" 
+                      onClick={() => setLocation(`/dashboard/courses/${id}`)}
+                      data-testid="button-continue-learning"
+                    >
+                      <PlayCircle className="w-5 h-5 mr-2" />
+                      Continue Learning
+                    </Button>
+                  ) : (
+                    <Button 
+                      size="lg" 
+                      onClick={() => enrollMutation.mutate()}
+                      disabled={enrollMutation.isPending || !user}
+                      data-testid="button-enroll"
+                    >
+                      {enrollMutation.isPending ? 'Enrolling...' : user ? 'Enroll Now' : 'Login to Enroll'}
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -187,6 +243,56 @@ export default function CourseDetail() {
                 )}
               </CardContent>
             </Card>
+
+            {modules.length > 0 && (
+              <Card className="mt-6">
+                <CardHeader>
+                  <CardTitle>Course Curriculum</CardTitle>
+                  <CardDescription data-testid="text-module-count">{modules.length} modules</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {modules.map((module, index) => (
+                      <div 
+                        key={module.id}
+                        className={`flex items-center gap-3 p-3 rounded-lg border ${enrollment ? 'hover-elevate cursor-pointer' : ''}`}
+                        onClick={() => enrollment && setLocation(`/dashboard/courses/${id}?module=${module.id}`)}
+                        data-testid={`module-item-${module.id}`}
+                      >
+                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary flex-shrink-0">
+                          <span className="text-sm font-medium">{index + 1}</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {getModuleIcon(module.contentType)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium truncate" data-testid={`text-module-title-${module.id}`}>
+                            {module.title}
+                          </h4>
+                          {module.description && (
+                            <p className="text-sm text-muted-foreground truncate">
+                              {module.description}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {module.duration && (
+                            <Badge variant="outline" className="text-xs">
+                              {module.duration}
+                            </Badge>
+                          )}
+                          {enrollment ? (
+                            <PlayCircle className="w-4 h-4 text-primary" />
+                          ) : (
+                            <Lock className="w-4 h-4 text-muted-foreground" />
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {course.syllabus && (
               <Card className="mt-6">
