@@ -6,9 +6,10 @@ export class BigtosService {
   private apiUrl = 'https://www.cp.bigtos.com/api/v1/sendmessage';
 
   constructor() {
-    // Require API key from environment variable - fail fast if missing
-    this.apiKey = process.env.BIGTOS_API_KEY;
-    if (!this.apiKey) {
+    // Require API key from environment variable
+    // In development, allow missing key (messages won't be sent)
+    this.apiKey = process.env.BIGTOS_API_KEY || '';
+    if (!this.apiKey && process.env.NODE_ENV !== 'development') {
       throw new Error('BIGTOS_API_KEY environment variable is required but not set');
     }
   }
@@ -71,6 +72,13 @@ export class BigtosService {
    * Private helper to handle the API request to BigTos
    */
   private async sendMessage(mobile: string, message: string, type: 'Text' | 'Image', imageUrl?: string): Promise<any> {
+    // In development without API key, just log and return success
+    if (!this.apiKey && process.env.NODE_ENV === 'development') {
+      console.log(`[DEV] WhatsApp message to ${mobile}: ${message}`);
+      await this.logMessage(mobile, message, imageUrl, type, 'Development mode - not sent', 'success');
+      return { status: 'success', dev_mode: true };
+    }
+
     const formData = new URLSearchParams({
       key: this.apiKey,
       mobileno: mobile,

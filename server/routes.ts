@@ -5,6 +5,7 @@ import { users, doctorProfiles, courses, quizzes, quizQuestions, jobs, mastercla
 import { eq, like, or, and, sql } from "drizzle-orm";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { bigtosService } from "./bigtos";
+import { requireAuth, getAuthenticatedUser } from "./auth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
@@ -16,8 +17,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Phone number is required" });
       }
 
-      // Generate 6-digit OTP
-      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+      // Generate OTP - use fixed 123456 in development
+      const otpCode = process.env.NODE_ENV === 'development' ? '123456' : Math.floor(100000 + Math.random() * 900000).toString();
       const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
       // Check if user exists
@@ -689,100 +690,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ===== WHATSAPP NOTIFICATION ROUTES =====
-  // Note: These endpoints require authentication and validate that the user owns the phone number
+  // Note: All endpoints require authentication via requireAuth middleware
   
-  app.post("/api/notifications/course-enrollment", async (req, res) => {
+  app.post("/api/notifications/course-enrollment", requireAuth, async (req, res) => {
     try {
-      const validated = courseEnrollmentNotificationSchema.parse(req.body);
+      const authenticatedUser = getAuthenticatedUser(req);
+      const { courseName } = req.body;
       
-      // Verify user exists and owns this phone number
-      const [user] = await db.select().from(users)
-        .where(and(eq(users.id, validated.userId), eq(users.phone, validated.phone)))
-        .limit(1);
-      
-      if (!user) {
-        return res.status(403).json({ error: "Unauthorized: User does not match phone number" });
+      if (!courseName) {
+        return res.status(400).json({ error: "courseName is required" });
       }
 
-      await bigtosService.sendCourseEnrollmentNotification(validated.phone, validated.courseName);
+      await bigtosService.sendCourseEnrollmentNotification(authenticatedUser.phone, courseName);
       res.json({ success: true, message: "Enrollment notification sent" });
     } catch (error) {
       console.error("Send enrollment notification error:", error);
-      if (error instanceof Error && error.name === 'ZodError') {
-        return res.status(400).json({ error: "Invalid request data" });
-      }
       res.status(500).json({ error: "Failed to send notification" });
     }
   });
 
-  app.post("/api/notifications/quiz-certificate", async (req, res) => {
+  app.post("/api/notifications/quiz-certificate", requireAuth, async (req, res) => {
     try {
-      const validated = quizCertificateNotificationSchema.parse(req.body);
+      const authenticatedUser = getAuthenticatedUser(req);
+      const { quizName, score } = req.body;
       
-      // Verify user exists and owns this phone number
-      const [user] = await db.select().from(users)
-        .where(and(eq(users.id, validated.userId), eq(users.phone, validated.phone)))
-        .limit(1);
-      
-      if (!user) {
-        return res.status(403).json({ error: "Unauthorized: User does not match phone number" });
+      if (!quizName || score === undefined) {
+        return res.status(400).json({ error: "quizName and score are required" });
       }
 
-      await bigtosService.sendQuizCertificateNotification(validated.phone, validated.quizName, validated.score);
+      await bigtosService.sendQuizCertificateNotification(authenticatedUser.phone, quizName, score);
       res.json({ success: true, message: "Quiz certificate notification sent" });
     } catch (error) {
       console.error("Send quiz notification error:", error);
-      if (error instanceof Error && error.name === 'ZodError') {
-        return res.status(400).json({ error: "Invalid request data" });
-      }
       res.status(500).json({ error: "Failed to send notification" });
     }
   });
 
-  app.post("/api/notifications/masterclass-booking", async (req, res) => {
+  app.post("/api/notifications/masterclass-booking", requireAuth, async (req, res) => {
     try {
-      const validated = masterclassBookingNotificationSchema.parse(req.body);
+      const authenticatedUser = getAuthenticatedUser(req);
+      const { masterclassName, scheduledAt } = req.body;
       
-      // Verify user exists and owns this phone number
-      const [user] = await db.select().from(users)
-        .where(and(eq(users.id, validated.userId), eq(users.phone, validated.phone)))
-        .limit(1);
-      
-      if (!user) {
-        return res.status(403).json({ error: "Unauthorized: User does not match phone number" });
+      if (!masterclassName || !scheduledAt) {
+        return res.status(400).json({ error: "masterclassName and scheduledAt are required" });
       }
 
-      await bigtosService.sendMasterclassBookingNotification(validated.phone, validated.masterclassName, validated.scheduledAt);
+      await bigtosService.sendMasterclassBookingNotification(authenticatedUser.phone, masterclassName, scheduledAt);
       res.json({ success: true, message: "Masterclass booking notification sent" });
     } catch (error) {
       console.error("Send masterclass notification error:", error);
-      if (error instanceof Error && error.name === 'ZodError') {
-        return res.status(400).json({ error: "Invalid request data" });
-      }
       res.status(500).json({ error: "Failed to send notification" });
     }
   });
 
-  app.post("/api/notifications/research-service", async (req, res) => {
+  app.post("/api/notifications/research-service", requireAuth, async (req, res) => {
     try {
-      const validated = researchServiceNotificationSchema.parse(req.body);
+      const authenticatedUser = getAuthenticatedUser(req);
+      const { serviceName, status } = req.body;
       
-      // Verify user exists and owns this phone number
-      const [user] = await db.select().from(users)
-        .where(and(eq(users.id, validated.userId), eq(users.phone, validated.phone)))
-        .limit(1);
-      
-      if (!user) {
-        return res.status(403).json({ error: "Unauthorized: User does not match phone number" });
+      if (!serviceName || !status) {
+        return res.status(400).json({ error: "serviceName and status are required" });
       }
 
-      await bigtosService.sendResearchServiceNotification(validated.phone, validated.serviceName, validated.status);
+      await bigtosService.sendResearchServiceNotification(authenticatedUser.phone, serviceName, status);
       res.json({ success: true, message: "Research service notification sent" });
     } catch (error) {
       console.error("Send research notification error:", error);
-      if (error instanceof Error && error.name === 'ZodError') {
-        return res.status(400).json({ error: "Invalid request data" });
-      }
       res.status(500).json({ error: "Failed to send notification" });
     }
   });
