@@ -27,6 +27,7 @@ import Masterclasses from "@/pages/Masterclasses";
 import MasterclassDetail from "@/pages/MasterclassDetail";
 import UserDashboard from "@/pages/UserDashboard";
 import CourseLearning from "@/pages/CourseLearning";
+import Certificates from "@/pages/Certificates";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminDoctors from "@/pages/admin/AdminDoctors";
 import AdminHospitals from "@/pages/admin/AdminHospitals";
@@ -49,6 +50,7 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/dashboard" component={UserDashboard} />
       <Route path="/dashboard/courses/:id" component={CourseLearning} />
+      <Route path="/dashboard/certificates" component={Certificates} />
       <Route path="/directory" component={DoctorDirectory} />
       <Route path="/doctor/:id/edit" component={DoctorProfileEdit} />
       <Route path="/doctor/:id" component={DoctorProfile} />
