@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { db } from "./db";
-import { users, doctorProfiles, courses, quizzes, quizQuestions, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, insertUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema } from "@shared/schema";
+import { users, doctorProfiles, courses, quizzes, quizQuestions, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, enrollments, insertUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema } from "@shared/schema";
 import { eq, like, or, and, sql } from "drizzle-orm";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { bigtosService } from "./bigtos";
@@ -217,6 +217,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Get course error:", error);
       res.status(500).json({ error: "Failed to fetch course" });
+    }
+  });
+
+  app.post("/api/courses/enroll", async (req, res) => {
+    try {
+      const { courseId, userId } = req.body;
+
+      if (!courseId || !userId) {
+        return res.status(400).json({ error: "courseId and userId are required" });
+      }
+
+      // Check if already enrolled
+      const [existingEnrollment] = await db
+        .select()
+        .from(enrollments)
+        .where(
+          and(
+            eq(enrollments.courseId, courseId),
+            eq(enrollments.userId, userId)
+          )
+        )
+        .limit(1);
+
+      if (existingEnrollment) {
+        return res.status(400).json({ error: "Already enrolled in this course" });
+      }
+
+      // Create enrollment
+      const [enrollment] = await db
+        .insert(enrollments)
+        .values({ courseId, userId, progress: 0 })
+        .returning();
+
+      // Update enrollment count
+      await db
+        .update(courses)
+        .set({ 
+          enrollmentCount: sql`${courses.enrollmentCount} + 1` 
+        })
+        .where(eq(courses.id, courseId));
+
+      // Get course details for notification
+      const [course] = await db
+        .select()
+        .from(courses)
+        .where(eq(courses.id, courseId))
+        .limit(1);
+
+      // Get user details for notification
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      // Send WhatsApp notification
+      if (course && user && user.phone) {
+        try {
+          await bigtosService.sendCourseEnrollmentNotification(
+            user.phone,
+            course.title
+          );
+        } catch (notifError) {
+          console.error("Failed to send enrollment notification:", notifError);
+          // Don't fail the enrollment if notification fails
+        }
+      }
+
+      res.json({ success: true, enrollment });
+    } catch (error) {
+      console.error("Enroll course error:", error);
+      res.status(500).json({ error: "Failed to enroll in course" });
     }
   });
 

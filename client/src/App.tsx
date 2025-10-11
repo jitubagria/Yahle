@@ -10,6 +10,7 @@ import DoctorDirectory from "@/pages/DoctorDirectory";
 import DoctorProfile from "@/pages/DoctorProfile";
 import DoctorProfileEdit from "@/pages/DoctorProfileEdit";
 import Courses from "@/pages/Courses";
+import CourseDetail from "@/pages/CourseDetail";
 import Quizzes from "@/pages/Quizzes";
 import QuizTake from "@/pages/QuizTake";
 import Jobs from "@/pages/Jobs";
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/doctor/:id/edit" component={DoctorProfileEdit} />
       <Route path="/doctor/:id" component={DoctorProfile} />
       <Route path="/courses" component={Courses} />
+      <Route path="/course/:id" component={CourseDetail} />
       <Route path="/quizzes" component={Quizzes} />
       <Route path="/quiz/:id" component={QuizTake} />
       <Route path="/jobs" component={Jobs} />
