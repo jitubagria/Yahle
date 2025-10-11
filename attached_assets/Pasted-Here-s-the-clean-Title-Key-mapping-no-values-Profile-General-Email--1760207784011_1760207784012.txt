@@ -1,0 +1,79 @@
+Here’s the clean **Title → Key mapping** (no values):
+
+---
+
+### 🧍 Profile General
+
+* Email → `email`
+* First Name → `first_name`
+* Middle Name → `middle_name`
+* Last Name → `last_name`
+* Date of Birth → `dob`
+* Gender → `gender`
+* Marital Status → `marriatialstatus`
+* Professional Degree → `professionaldegree`
+* Profile Picture → `profile_pic`
+* Thumb (L) → `thumbl`
+* Thumbs → `thumbs`
+* Thumb Image → `thumbimage`
+
+---
+
+### 📞 Contact
+
+* Phone → `user_mobile`
+* Alternate No → `alternateno`
+* Website → `user_website`
+* Facebook → `user_facebook`
+* Twitter → `user_twitter`
+* Instagram → `user_instagram`
+* Others → `contact_others`
+
+---
+
+### 🎓 Academic
+
+* UG Admission Year → `ug_admission_year`
+* UG Location → `ug_location`
+* UG College → `ug_college`
+* PG Admission Year → `pg_admission_year`
+* PG Location → `pg_location`
+* PG College → `pg_college`
+* PG Type → `pg_type`
+* PG Branch → `pg_branch`
+* SS Admission Year → `ss_admission_year`
+* SS Location → `ss_location`
+* SS College → `ss_college`
+* SS Type → `ss_type`
+* SS Branch → `ss_branch`
+* Additional Qualification Course → `additionalqualification_course`
+* Additional Qualification Admission Year → `additionalqualification_admission_year`
+* Additional Qualification Location → `additionalqualification_location`
+* Additional Qualification College/Institute → `additionalqualification_college`
+* Additional Details → `additionalqualification_details`
+
+---
+
+### 🏥 Job
+
+* Job Sector → `job_sector`
+* Job Country → `job_country`
+* Job State → `job_state`
+* Job City → `job_city`
+* Central Sub → `job_central_sub`
+* Central Others → `central_others`
+* State Sub → `job_state_sub`
+* State Others → `state_others`
+* Private Hospital → `job_private_hospital`
+* Added Private Hospital → `job_added_private_hospital`
+* Medical College → `job_medicalcollege`
+* Rajasthan District → `job_raj_district`
+* Rajasthan Block → `job_raj_block`
+* Rajasthan Place → `job_raj_place`
+* Jaipur Area → `jaipurarea`
+
+---
+
+### 🏁 Flags
+
+* Is Profile Complete → `isprofilecomplete`
