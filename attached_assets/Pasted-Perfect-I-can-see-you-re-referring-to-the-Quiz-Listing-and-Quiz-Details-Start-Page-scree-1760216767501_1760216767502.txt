@@ -1,0 +1,230 @@
+Perfect — I can see you’re referring to the **Quiz Listing** and **Quiz Details (Start Page)** screens.
+Let’s upgrade them with **complete functional and informational details** consistent with your DocsUniverse quiz framework (real-time ranking, certificates, difficulty level, etc.).
+
+---
+
+## 🧠 ENHANCED QUIZ LISTING PAGE
+
+**URL:** `/quizzes`
+**Purpose:** Show all active, upcoming, and past quizzes with more details.
+
+### 🔹 Recommended Card Design (for each quiz)
+
+**Existing:**
+
+* Title
+* Duration
+* Passing %
+* “Start Quiz” button
+
+**New (Extended) Fields:**
+
+| Field                            | Description                                           | Example                              |
+| -------------------------------- | ----------------------------------------------------- | ------------------------------------ |
+| **Quiz Title**                   | Name of the quiz                                      | *Cardiology Basics*                  |
+| **Category / Specialty**         | Tag for medical domain                                | *Cardiology*                         |
+| **Difficulty Level**             | Indicates complexity                                  | *Beginner / Intermediate / Advanced* |
+| **Type**                         | *Free / Paid / Live / Practice*                       |                                      |
+| **No. of Questions**             | Display from DB                                       | *20 Questions*                       |
+| **Total Marks**                  | For better clarity                                    | *20 Marks*                           |
+| **Language**                     | *English / Hindi / Bilingual*                         |                                      |
+| **Status Tag**                   | *Active / Upcoming / Completed*                       |                                      |
+| **Start Date & Time**            | For scheduled live quizzes                            | *25 Nov 2025, 10:00 AM IST*          |
+| **End Date**                     | If applicable                                         | *25 Nov 2025, 11:00 AM IST*          |
+| **Participants Joined**          | Current count                                         | *1250 Enrolled*                      |
+| **Top Prize / Certificate Type** | Prize or reward                                       | *Cash ₹10,000 + Certificate*         |
+| **Enrollment Button**            | *Start / Register / View Results* depending on status |                                      |
+
+---
+
+### 🧩 Example Card Layout
+
+```
+------------------------------------------------------------
+[🏆]  Anatomy Championship 2025           [Active]
+Category: Anatomy     Difficulty: Advanced
+Questions: 50 | Duration: 45 min | Total Marks: 100
+Starts: 25 Nov 2025, 10:00 AM | Prize: ₹50,000
+Registered: 1250 participants
+-----------------------------------
+[📜] Certificate: Participation + Excellence
+[💰] Entry Fee: ₹0 (Free)
+[▶ Start Quiz]  or  [🕓 Register for Upcoming]
+------------------------------------------------------------
+```
+
+**Optional Filter Toolbar:**
+
+* Search by Name
+* Specialty dropdown
+* Difficulty dropdown
+* Type: [All | Free | Paid | Live | Practice]
+* Sort: [Newest / Popular / Duration / Prize]
+
+---
+
+## 📘 QUIZ DETAILS PAGE (START PAGE)
+
+**URL:** `/quiz/{slug}`
+**Purpose:** Display complete information, instructions, and enrollment button.
+
+### 🔹 Add These Sections
+
+#### 1️⃣ **Quiz Header**
+
+* Title
+* Specialty
+* Difficulty
+* Type (Live / Practice / Paid)
+* Prize Info
+* Countdown (for scheduled quiz)
+
+#### 2️⃣ **Quiz Summary Info Cards**
+
+| Card                  | Example                                     |
+| --------------------- | ------------------------------------------- |
+| **⏱ Duration**        | 10 minutes                                  |
+| **📊 Passing Score**  | 60%                                         |
+| **❓ Total Questions** | 20                                          |
+| **🎯 Total Marks**    | 100                                         |
+| **💰 Entry Fee**      | ₹0 (Free)                                   |
+| **📜 Certificate**    | Auto-generated (Participation + Excellence) |
+| **📆 Start Time**     | 25 Nov 2025, 10:00 AM                       |
+| **🔒 Attempt Limit**  | 1 attempt only                              |
+
+---
+
+#### 3️⃣ **Instructions Section**
+
+Expand your current list:
+
+✅ **Rules & Instructions**
+
+* The quiz will start at the scheduled time.
+* Each question carries equal marks.
+* You will have **N seconds** per question.
+* Once time runs out, it auto-submits.
+* No negative marking (optional flag).
+* Internet interruptions won’t pause timer.
+* Certificate will be generated instantly.
+* Rank is calculated by correctness + speed.
+* Results are displayed on completion screen.
+
+✅ **Technical Requirements**
+
+* Stable Internet Connection.
+* Use Chrome / Edge browser.
+* Allow popup for certificate download.
+* Keep WhatsApp ready for OTP login.
+
+---
+
+#### 4️⃣ **Leaderboard & Rewards (Optional)**
+
+Show preview if quiz is ongoing:
+
+* Top 5 leaderboard snapshot (if active).
+* Link: “View Full Leaderboard”.
+
+---
+
+#### 5️⃣ **Certificate Sample (Optional Modal)**
+
+Small preview box:
+
+> “See what your certificate will look like”
+> Displays generated certificate image (sample).
+
+---
+
+#### 6️⃣ **Action Buttons**
+
+* **Start Quiz** *(if ongoing)*
+* **Register Now** *(if upcoming)*
+* **View Results / Leaderboard** *(if completed)*
+* **Download Certificate** *(if eligible)*
+
+---
+
+## 💾 DATABASE ENHANCEMENTS
+
+Add these columns to `quizzes` table:
+
+| Field              | Type                                       | Description                     |
+| ------------------ | ------------------------------------------ | ------------------------------- |
+| `difficulty`       | ENUM('Beginner','Intermediate','Advanced') | Difficulty level                |
+| `type`             | ENUM('Free','Paid','Live','Practice')      | Quiz mode                       |
+| `language`         | VARCHAR(50)                                | Medium                          |
+| `total_questions`  | INT                                        | Count                           |
+| `total_marks`      | INT                                        | Calculated                      |
+| `entry_fee`        | DECIMAL(10,2)                              | Optional                        |
+| `certificate_type` | VARCHAR(100)                               | e.g., Participation, Excellence |
+| `reward_info`      | TEXT                                       | Prize description               |
+| `status`           | ENUM('Active','Upcoming','Completed')      | Quiz lifecycle                  |
+| `participants`     | INT                                        | Auto-counted                    |
+| `start_datetime`   | DATETIME                                   | Scheduled start                 |
+| `end_datetime`     | DATETIME                                   | End time                        |
+| `attempt_limit`    | INT                                        | Default 1                       |
+
+---
+
+## 🧮 SCORECARD (POST-QUIZ PAGE)
+
+After submission, show:
+
+* User Score (e.g., 80/100)
+* Accuracy (%)
+* Rank
+* Speed Index (seconds/question)
+* Certificate Download Button
+* “Try Another Quiz” button
+
+---
+
+## 🧾 ADMIN QUIZ CREATION DASHBOARD FIELDS
+
+In Admin Panel → **Add Quiz Form**, include:
+
+1. Title
+2. Description
+3. Specialty / Category
+4. Difficulty (Beginner, Intermediate, Advanced)
+5. Quiz Type (Free, Paid, Live, Practice)
+6. Entry Fee (₹)
+7. Certificate Type (Participation, Top 3, etc.)
+8. Duration (Minutes)
+9. Question Count
+10. Passing %
+11. Start & End Time (for live)
+12. Enable Speed Scoring (Yes/No)
+13. Enable Negative Marking (Yes/No)
+14. Reward Details (Prize Money, Gift, Points)
+15. Status (Draft, Active, Completed)
+
+---
+
+## ✅ DESIGN SUGGESTIONS
+
+* Keep color badges:
+
+  * 🟢 Active
+  * 🟠 Upcoming
+  * 🔵 Completed
+
+* Use icons for quick read:
+
+  * ⏱ Duration
+  * 📊 Passing %
+  * 🧠 Questions
+  * 🎯 Marks
+  * 📅 Date
+  * 🧾 Certificate
+
+* Include dynamic progress indicators for users who partially completed quizzes.
+
+---
+
+Would you like me to next create a **combined design wireframe** (Admin + User views for quizzes) showing:
+
+* Quiz list → Quiz details → Quiz playing → Result → Certificate flow?
+  That will help finalize UI + DB linkage in your CodeIgniter project.

@@ -1,0 +1,447 @@
+Excellent — now we are moving into the **“DocsUniverse CRM + Dashboard Architecture”** layer.
+Here’s a complete breakdown of **both dashboards** (Admin & User) with **modules, permissions, analytics, and workflows**, fully aligned with your portal’s ecosystem (Doctors, Hospitals, Courses, Quizzes, Masterclasses, Jobs, AI Tools, Research, Services, Communication).
+
+---
+
+# 🧩 DOCSUNIVERSE DASHBOARD SYSTEM BLUEPRINT
+
+*(For CodeIgniter + MySQL Build on Replit)*
+
+---
+
+## 🔹 1. DASHBOARD TYPES OVERVIEW
+
+| Dashboard Type            | Purpose                                                                                                                                                | Accessible Roles                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| **User Dashboard**        | Personalized workspace for Doctors, Students, and Service Providers. Shows their profile, enrolled content, progress, quiz scores, requests, payments. | Doctor / Student / Provider                        |
+| **Admin Dashboard (CRM)** | Central control panel for managing **Directories, Courses, Quizzes, Jobs, AI Tools, Services, Messaging, Reports, Analytics**.                         | Admin only (Super Admin, possibly multiple admins) |
+
+Both dashboards share a common layout:
+
+* Left Sidebar (Modules)
+* Top Bar (Quick Search, Notifications, WhatsApp Bot toggle)
+* Center Panel (Dynamic content)
+* Right Sidebar (Recent Activity / Analytics Quick View)
+
+---
+
+## 🧠 2. ADMIN DASHBOARD (CRM PANEL)
+
+### 🎯 Core Purpose
+
+A **central CRM system** to manage all entities, users, and automation workflows.
+It combines:
+
+* Directory management (Doctors/Hospitals)
+* LMS (Courses, Quizzes, Masterclasses)
+* Recruitment (Jobs)
+* AI Tools and Research
+* Payment + Communication modules
+
+---
+
+### 🗂 ADMIN SIDEBAR MODULE STRUCTURE
+
+```
+Dashboard
+│
+├── Doctors Directory
+│   ├── View / Search / Filter
+│   ├── Import (Excel/CSV)
+│   ├── Add / Edit / Delete
+│   ├── Approval Queue (for new profiles)
+│   ├── Export (CSV/PDF)
+│   ├── Merge duplicates / Assign Hospitals
+│
+├── Hospitals Directory
+│   ├── View / Add / Edit / Delete
+│   ├── Import (Excel)
+│   ├── Link Doctors to Hospital
+│   ├── Export (PDF/CSV)
+│
+├── Courses & Learning
+│   ├── Courses
+│   │   ├── Create / Edit / Delete
+│   │   ├── Upload Content (HTML, Video, PDF)
+│   │   ├── Assign Instructors
+│   │   ├── Enrollments List
+│   │   ├── Progress Tracker
+│   │   ├── Certificate Generator
+│   └── Masterclasses
+│       ├── Create / Edit / Delete
+│       ├── Schedule / Capacity / Venue
+│       ├── Participants List
+│       ├── Attendance & Certificates
+│
+├── Quizzes
+│   ├── Create / Edit / Delete
+│   ├── Question Bank (import/export)
+│   ├── Schedule (Live / Static)
+│   ├── Leaderboard & Results
+│   ├── Auto Certificate Generator
+│   ├── Analyze Performance (accuracy/time/participants)
+│
+├── Jobs Board
+│   ├── Post Job / Edit / Archive
+│   ├── Applications View (per job)
+│   ├── Assign to Recruiter / Status
+│   ├── Export applicants list
+│
+├── AI Tools
+│   ├── Tools Management
+│   │   ├── Add new tool (name, category, endpoint, description)
+│   │   ├── Edit / Deactivate
+│   │   ├── Assign Access (role-based)
+│   ├── Requests Log
+│   │   ├── View user queries/responses
+│   │   ├── Filter by tool / user
+│   │   ├── Revoke / Approve usage
+│
+├── Research & Services
+│   ├── Service Catalogue
+│   │   ├── Add / Edit / Disable service
+│   ├── Requests
+│   │   ├── All Requests Table
+│   │   ├── Assign Provider (manual/auto)
+│   │   ├── Upload Output / Close Request
+│   │   ├── Generate Reports / Invoices
+│   ├── Providers
+│   │   ├── Add / Manage Providers
+│   │   ├── Region / Specialization tags
+│
+├── Users & CRM
+│   ├── All Users (Filter by role)
+│   ├── Verify / Suspend / Promote
+│   ├── Activity Log (last login, active modules)
+│   ├── Role Management (Doctor / Student / Provider / Admin)
+│   ├── Opt-in Status (AI, Messaging, Premium)
+│
+├── Manual Messaging
+│   ├── Filter users (by Role, Specialty, Region, Enrolled Course, etc.)
+│   ├── Message Composer (Text / Media)
+│   ├── Send via WhatsApp / Email / Internal
+│   ├── Bulk Schedule / Logs / Analytics
+│
+├── Payments & Reports
+│   ├── Transactions Table (OrderID, User, Amount, Type, Status)
+│   ├── Revenue by Module (Courses, Quizzes, Services)
+│   ├── Pending Payments
+│   ├── Refund Management
+│   ├── Generate Invoice PDF
+│
+├── Analytics & Dashboard
+│   ├── Total Doctors / Hospitals
+│   ├── Course Enrollments (daily/monthly)
+│   ├── Quiz Participation / Accuracy Trends
+│   ├── Service Requests by Type
+│   ├── Active Users / Logins per day
+│   ├── Job Applications by Region
+│   ├── AI Tool Usage Count
+│
+└── Settings
+    ├── Bigtos WhatsApp API Config
+    ├── Razorpay / Stripe Keys
+    ├── AI API Keys (OpenAI / Langchain / HuggingFace)
+    ├── SMTP / Email Settings
+    ├── Branding (Logo, Colors, Footer Info)
+```
+
+---
+
+### ⚙️ ADMIN DASHBOARD FUNCTIONALITY DETAILS
+
+#### **A. Import & Export Management**
+
+* Bulk import Excel for **Doctors** and **Hospitals** (CSV/XLSX parser via PHPSpreadsheet).
+* Template-based mapping → Column validation before save.
+* Preview table before committing.
+* Option to export filtered lists (CSV or PDF) with selected columns.
+
+#### **B. Course / Masterclass Management**
+
+* Drag-and-drop builder for modules/lessons.
+* Attach PDF, Video, HTML.
+* Assign instructor (link with `doctors` table).
+* Enrollment tracking (progress bar, last login).
+* Generate course completion certificate (MPDF).
+* Attendance & QR-based entry for masterclasses.
+
+#### **C. Quiz & Certificate Panel**
+
+* Add quiz, import from Excel (question, 4 options, correct key).
+* Auto-randomize order.
+* Result Analytics: accuracy %, fastest responders, average scores.
+* Auto issue certificates via WhatsApp.
+* Manual override: Admin can send certificate or re-issue.
+
+#### **D. Jobs Management**
+
+* Post new jobs, set expiry.
+* Track applications: shortlisting, notes, change status (Accepted/Rejected).
+* Export applicant resumes.
+* Integration: send “Job status update” via WhatsApp or email directly from admin panel.
+
+#### **E. AI Tools Management**
+
+* Define tool metadata (name, description, endpoint, access role).
+* Track all usage logs: user, query, timestamp, cost (if API-based).
+* Approve or revoke user access.
+* Add internal AI tools (like custom calculators, prompts).
+* Analytics: usage frequency by tool.
+
+#### **F. Research & Service Management**
+
+* View all requests with status tags: Pending / In Progress / Done / Paid / Unpaid.
+* Assign to provider manually or auto-assign by region/service type.
+* Upload output files (editable text + PDF).
+* Generate Service Completion Certificate / Invoice (MPDF).
+* Audit Trail (created_by, assigned_to, completion_time).
+
+#### **G. User Management / CRM**
+
+* Filter users: role, city, hospital, specialization, enrolled courses, etc.
+* Bulk actions: send message, assign tag, set premium, revoke AI tool.
+* View full user profile including activity (courses joined, quizzes, jobs applied, etc.)
+* Download reports per user (profile + stats).
+
+#### **H. Manual Messaging Panel**
+
+* Rich Message Composer:
+
+  * Filter: Role + Specialty + Enrollment + City + Status.
+  * Compose: Text / Image / Button.
+  * Select channel: WhatsApp (via BigTos), Email, or In-App Notification.
+  * Schedule or send instantly.
+  * Track delivery (via BigTos response log).
+* Templates: save common messages (e.g., “New Masterclass Launch”).
+* Logs: who sent, when, recipients count, delivery success.
+
+#### **I. Analytics Dashboard (Landing Page)**
+
+Interactive charts:
+
+* Total Doctors (by specialty, by city)
+* Active Courses (with enrollment counts)
+* Quiz participation trend
+* Jobs & applications timeline
+* Service requests count per type
+* Revenue by category
+* Top 10 active users
+  *(Use Chart.js in admin view)*
+
+---
+
+## 👩‍⚕️ 3. USER DASHBOARD (DOCTOR / STUDENT / PROVIDER)
+
+### 🧭 NAVIGATION OVERVIEW
+
+```
+Dashboard (Overview)
+│
+├── My Profile
+│   ├── Edit General / Professional / Education / Job details
+│   ├── Upload Photo & Certificates
+│
+├── Courses
+│   ├── Enrolled Courses
+│   ├── Available Courses
+│   ├── Certificates
+│
+├── Quizzes
+│   ├── Upcoming Quizzes
+│   ├── Past Quizzes & Results
+│   ├── Download Certificates
+│
+├── Masterclasses
+│   ├── Registered Masterclasses
+│   ├── Upcoming Events
+│   ├── Attendance & Certificates
+│
+├── Jobs
+│   ├── Search Jobs (filters)
+│   ├── Apply / Track Applications
+│   ├── Saved Jobs
+│
+├── AI Tools
+│   ├── Diagnostic Helper
+│   ├── Stats Calculator
+│   ├── Literature Search
+│   ├── Note Generator
+│   ├── Usage History
+│
+├── Research & Services
+│   ├── Request Service
+│   ├── My Requests (Status / Chat / Files)
+│   ├── Upload / Download Reports
+│
+├── Messages & Notifications
+│   ├── Inbox (Admin / System messages)
+│   ├── WhatsApp Notifications Log
+│
+├── Wallet / Payments
+│   ├── My Orders / Transactions
+│   ├── Download Invoices
+│
+└── Support
+    ├── Contact Admin
+    ├── FAQs
+```
+
+---
+
+### ⚙️ USER DASHBOARD FUNCTIONS
+
+#### **1. Overview Page**
+
+* Mini-widgets showing:
+
+  * Profile completeness %
+  * Enrolled Courses count
+  * Quiz Rank trend
+  * Active Service Requests
+  * Next Masterclass Date
+  * Total Certificates earned
+
+#### **2. Profile Editor**
+
+* Tabbed interface:
+
+  * General / Professional / Education / Job / Social.
+* Autosave changes.
+* Preview mode (how public profile looks).
+* Upload Documents (degrees, ID).
+* Request “Profile Verification” (Admin approval step).
+
+#### **3. Courses & Masterclasses**
+
+* “My Learning” area: visual progress bar per course.
+* Certificate Download (PDF).
+* Course Feedback form.
+* Upcoming masterclasses calendar (list + enroll button).
+
+#### **4. Quizzes**
+
+* Calendar showing scheduled live quizzes.
+* Live “Join Now” button when active.
+* Real-time leaderboard display after completion.
+* Score breakdown (accuracy, speed).
+* Certificate auto-download.
+
+#### **5. Jobs**
+
+* Filtered search (specialty, city, experience).
+* Apply directly (attach resume / use profile data).
+* Track Application Status (“Applied”, “Shortlisted”, etc.).
+* Save Job postings.
+
+#### **6. AI Tools**
+
+* Card interface for each tool.
+* Role-based access enforcement.
+* Logs of queries with timestamps.
+* Option to upgrade (if feature restricted).
+
+#### **7. Services**
+
+* Submit new request (form).
+* Track all requests with status.
+* Download final outputs or invoices.
+* Rate service provider.
+
+#### **8. Payments**
+
+* History of all orders (Courses, Quizzes, Services).
+* Invoice download.
+* Razorpay transaction ID & date.
+* Refund status if applicable.
+
+#### **9. Messages**
+
+* Receive admin broadcasts (manual messaging).
+* System notifications (quiz results, new masterclass).
+* Option to chat with assigned service provider (if implemented).
+* Mark read / archive.
+
+---
+
+## 📊 4. DASHBOARD TECHNOLOGY STRUCTURE
+
+| Layer              | Framework                       | Key Modules                                                                |
+| ------------------ | ------------------------------- | -------------------------------------------------------------------------- |
+| **Front-End**      | Bootstrap 5 + jQuery + Chart.js | Tables, Filters, Modals, Charts                                            |
+| **Back-End**       | CodeIgniter 4 (MVC)             | Separate controllers per module (DoctorController, CourseController, etc.) |
+| **Database**       | MySQL                           | All relational schema designed earlier                                     |
+| **Import/Export**  | PHPSpreadsheet                  | Excel upload/export                                                        |
+| **PDF Generation** | mPDF                            | Certificates, Invoices, NPA                                                |
+| **Messaging API**  | BigTos                          | WhatsApp integration                                                       |
+| **Payment API**    | Razorpay                        | Transactions                                                               |
+| **AI API**         | OpenAI / Langchain / Local      | Tool integration                                                           |
+| **Charting**       | Chart.js / Recharts             | Analytics dashboard                                                        |
+| **File Upload**    | CI Upload Lib                   | Photos, Docs, Certificates                                                 |
+
+---
+
+## 📬 5. CRM COMMUNICATION PANEL (Manual Messaging)
+
+A **separate CRM section** exclusively for targeted communication.
+
+**Filter Criteria:**
+
+* Role (Doctor / Student / Provider)
+* Specialty
+* Location
+* Course Enrolled
+* Quiz Participant
+* Last Active Date
+* Premium/Free
+
+**Compose Options:**
+
+* Plain text, Image, or PDF
+* Quick Buttons (URLs)
+* Personalized tokens: `{#NAME#}`, `{#COURSE#}`, `{#QUIZ#}`
+* WhatsApp (via BigTos API) or Email
+* Schedule send or Send Now
+
+**Logs:**
+
+* Message ID, Sender, Recipients count, Delivery status
+* Export logs
+* Analytics: open rate (email), delivery (WhatsApp)
+
+---
+
+## 🧩 6. ACCESS CONTROL MATRIX
+
+| Module         | Admin         | Doctor        | Student       | Provider       |
+| -------------- | ------------- | ------------- | ------------- | -------------- |
+| Directory Mgmt | ✅ Full        | 🔹 Edit self  | ❌             | ❌              |
+| Courses        | ✅ Create/Edit | ✅ Enroll      | ✅ Enroll      | ❌              |
+| Quizzes        | ✅ Manage      | ✅ Participate | ✅ Participate | ❌              |
+| Masterclasses  | ✅ Manage      | ✅ Attend      | ✅ Attend      | ❌              |
+| Jobs           | ✅ Manage      | ✅ Apply       | ✅ Apply       | 🔹 Post/Review |
+| AI Tools       | ✅ Manage      | ✅ Use         | ✅ Use         | ❌              |
+| Services       | ✅ Manage      | ✅ Request     | ✅ Request     | ✅ Fulfill      |
+| Messaging      | ✅ All         | 🔹 Receive    | 🔹 Receive    | 🔹 Receive     |
+| Payments       | ✅ View All    | ✅ View Own    | ✅ View Own    | ✅ View Own     |
+
+---
+
+## 🚀 7. NEXT STEPS
+
+1. **Implement database structure + dashboard layout** in CodeIgniter (AdminLTE or custom Bootstrap).
+2. **Create two entry points:**
+
+   * `/admin` → Admin CRM panel
+   * `/dashboard` → User dashboard (role-aware)
+3. **Enable modular controllers**:
+
+   * `Admin/DoctorsController`, `Admin/CoursesController`, etc.
+   * `User/CoursesController`, `User/QuizzesController`, etc.
+4. **Integrate DataTables** for all list screens (search + sort).
+5. **Link messaging, PDF, and payment APIs** as backend services.
+
+---
+
+Would you like me to now generate a **visual sitemap + UI wireframe layout (boxes + arrows)** for both dashboards (Admin & User)?
+That diagram will make it clear how all these modules connect and what CRUD endpoints each will use.

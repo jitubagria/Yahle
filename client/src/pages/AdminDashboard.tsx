@@ -10,18 +10,36 @@ import {
   TrendingUp,
   UserCheck,
   AlertCircle,
-  BarChart3
+  BarChart3,
+  Brain,
+  FileText,
+  Calendar,
+  Building,
+  MessageSquare,
+  Settings,
+  ArrowRight
 } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { getAuthenticatedUser } from '@/lib/auth';
+import { useEffect } from 'react';
+import { useLocation, Link } from 'wouter';
 
 export default function AdminDashboard() {
+  const user = getAuthenticatedUser();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!user || user.role !== 'admin') {
+      setLocation('/');
+    }
+  }, [user, setLocation]);
+
   const { data: stats } = useQuery({
     queryKey: ['/api/admin/stats'],
   });
 
-  const { data: users } = useQuery({
-    queryKey: ['/api/admin/users'],
-  });
+  if (!user || user.role !== 'admin') {
+    return null;
+  }
 
   const metrics = [
     { label: 'Total Users', value: stats?.totalUsers || 0, icon: Users, change: '+12%', changeType: 'positive' },
@@ -30,12 +48,99 @@ export default function AdminDashboard() {
     { label: 'Active Jobs', value: stats?.activeJobs || 0, icon: Briefcase, change: '-3%', changeType: 'negative' },
   ];
 
+  const managementModules = [
+    {
+      title: 'Doctors Directory',
+      description: 'Manage profiles, import Excel, approval queue',
+      icon: Users,
+      href: '/admin/doctors',
+      color: 'bg-blue-500/10 text-blue-600',
+    },
+    {
+      title: 'Hospitals Directory',
+      description: 'Add hospitals, link doctors, export data',
+      icon: Building,
+      href: '/admin/hospitals',
+      color: 'bg-green-500/10 text-green-600',
+    },
+    {
+      title: 'Courses & Learning',
+      description: 'Create courses, upload content, enrollments',
+      icon: GraduationCap,
+      href: '/admin/courses',
+      color: 'bg-purple-500/10 text-purple-600',
+    },
+    {
+      title: 'Quizzes',
+      description: 'Question bank, schedule, certificates',
+      icon: Brain,
+      href: '/admin/quizzes',
+      color: 'bg-orange-500/10 text-orange-600',
+    },
+    {
+      title: 'Masterclasses',
+      description: 'Schedule events, manage participants',
+      icon: Calendar,
+      href: '/admin/masterclasses',
+      color: 'bg-pink-500/10 text-pink-600',
+    },
+    {
+      title: 'Jobs Board',
+      description: 'Post jobs, view applications',
+      icon: Briefcase,
+      href: '/admin/jobs',
+      color: 'bg-cyan-500/10 text-cyan-600',
+    },
+    {
+      title: 'AI Tools',
+      description: 'Manage tools, requests log, access',
+      icon: Brain,
+      href: '/admin/ai-tools',
+      color: 'bg-indigo-500/10 text-indigo-600',
+    },
+    {
+      title: 'Research & Services',
+      description: 'Catalogue, providers, reports',
+      icon: FileText,
+      href: '/admin/research',
+      color: 'bg-teal-500/10 text-teal-600',
+    },
+    {
+      title: 'Users & CRM',
+      description: 'Manage users, roles, activity log',
+      icon: Users,
+      href: '/admin/users',
+      color: 'bg-red-500/10 text-red-600',
+    },
+    {
+      title: 'Manual Messaging',
+      description: 'Filter users, send WhatsApp/Email',
+      icon: MessageSquare,
+      href: '/admin/messaging',
+      color: 'bg-amber-500/10 text-amber-600',
+    },
+    {
+      title: 'Payments & Reports',
+      description: 'Transactions, revenue, refunds',
+      icon: BarChart3,
+      href: '/admin/payments',
+      color: 'bg-emerald-500/10 text-emerald-600',
+    },
+    {
+      title: 'Settings',
+      description: 'API configs, branding, integrations',
+      icon: Settings,
+      href: '/admin/settings',
+      color: 'bg-slate-500/10 text-slate-600',
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-background">
       <div className="bg-primary/5 border-b">
         <div className="container mx-auto px-4 py-8">
-          <h1 className="text-4xl font-bold mb-2">Admin Dashboard</h1>
-          <p className="text-muted-foreground">Manage users, content, and platform analytics</p>
+          <h1 className="text-4xl font-bold mb-2" data-testid="text-admin-title">Admin Dashboard - CRM</h1>
+          <p className="text-muted-foreground">Comprehensive management system for DocsUniverse</p>
         </div>
       </div>
 
@@ -62,182 +167,88 @@ export default function AdminDashboard() {
           ))}
         </div>
 
-        <Tabs defaultValue="users" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="users" data-testid="tab-users">
-              <Users className="w-4 h-4 mr-2" />
-              User Management
-            </TabsTrigger>
-            <TabsTrigger value="content" data-testid="tab-content">
-              <BookOpen className="w-4 h-4 mr-2" />
-              Content
-            </TabsTrigger>
-            <TabsTrigger value="analytics" data-testid="tab-analytics">
-              <BarChart3 className="w-4 h-4 mr-2" />
-              Analytics
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="users">
-            <Card>
-              <CardHeader>
-                <CardTitle>User Management</CardTitle>
-                <CardDescription>View and manage platform users</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {users && users.length > 0 ? (
-                  <div className="space-y-4">
-                    {users.map((user: any) => (
-                      <div
-                        key={user.id}
-                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
-                        data-testid={`user-row-${user.id}`}
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                            <Users className="w-5 h-5 text-primary" />
-                          </div>
-                          <div>
-                            <p className="font-medium" data-testid={`text-user-phone-${user.id}`}>{user.phone}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {user.role} • {user.isVerified ? 'Verified' : 'Unverified'}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={user.isVerified ? 'default' : 'outline'}>
-                            {user.role}
-                          </Badge>
-                          <Button variant="outline" size="sm" data-testid={`button-edit-user-${user.id}`}>
-                            Edit
-                          </Button>
-                        </div>
+        {/* Management Modules */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-semibold mb-4">Management Modules</h2>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {managementModules.map((module) => (
+              <Link key={module.href} href={module.href}>
+                <Card className="hover-elevate cursor-pointer h-full">
+                  <CardContent className="p-6">
+                    <div className="flex items-start gap-4">
+                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${module.color}`}>
+                        <module.icon className="w-6 h-6" />
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">No users found</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold mb-1">{module.title}</h3>
+                        <p className="text-sm text-muted-foreground line-clamp-2">{module.description}</p>
+                      </div>
+                      <ArrowRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </div>
 
-          <TabsContent value="content">
-            <div className="grid md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BookOpen className="w-5 h-5" />
-                    Course Management
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    {stats?.totalCourses || 0} courses published
-                  </p>
-                  <Button className="w-full" data-testid="button-manage-courses">
-                    Manage Courses
-                  </Button>
-                </CardContent>
-              </Card>
+        {/* Quick Actions & Activity */}
+        <div className="grid md:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Quick Actions</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Button variant="outline" className="w-full justify-start" data-testid="button-add-doctor">
+                <Users className="w-4 h-4 mr-2" />
+                Add New Doctor
+              </Button>
+              <Button variant="outline" className="w-full justify-start" data-testid="button-create-course">
+                <GraduationCap className="w-4 h-4 mr-2" />
+                Create Course
+              </Button>
+              <Button variant="outline" className="w-full justify-start" data-testid="button-send-message">
+                <MessageSquare className="w-4 h-4 mr-2" />
+                Send Bulk Message
+              </Button>
+              <Button variant="outline" className="w-full justify-start" data-testid="button-post-job">
+                <Briefcase className="w-4 h-4 mr-2" />
+                Post New Job
+              </Button>
+            </CardContent>
+          </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Briefcase className="w-5 h-5" />
-                    Job Postings
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    {stats?.activeJobs || 0} active job listings
-                  </p>
-                  <Button className="w-full" data-testid="button-manage-jobs">
-                    Manage Jobs
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="analytics">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5" />
-                  Platform Analytics
-                </CardTitle>
-                <CardDescription>Track platform growth and engagement</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Activity</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3 text-sm">
+                <div className="flex items-start gap-2">
+                  <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5" />
                   <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">User Growth</span>
-                      <span className="text-sm text-muted-foreground">+12% this month</span>
-                    </div>
-                    <div className="h-2 bg-muted rounded-full overflow-hidden">
-                      <div className="h-full bg-primary" style={{ width: '75%' }} />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">Course Enrollments</span>
-                      <span className="text-sm text-muted-foreground">+8% this month</span>
-                    </div>
-                    <div className="h-2 bg-muted rounded-full overflow-hidden">
-                      <div className="h-full bg-green-500" style={{ width: '60%' }} />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">Job Applications</span>
-                      <span className="text-sm text-muted-foreground">+15% this month</span>
-                    </div>
-                    <div className="h-2 bg-muted rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-500" style={{ width: '85%' }} />
-                    </div>
-                  </div>
-
-                  <div className="pt-4 border-t">
-                    <Button variant="outline" className="w-full" data-testid="button-view-detailed-analytics">
-                      <BarChart3 className="w-4 h-4 mr-2" />
-                      View Detailed Analytics
-                    </Button>
+                    <p className="font-medium">New doctor registered</p>
+                    <p className="text-xs text-muted-foreground">5 minutes ago</p>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-
-        {/* Quick Actions */}
-        <Card className="mt-8">
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-3 gap-4">
-              <Button variant="outline" className="justify-start" data-testid="button-verify-doctors">
-                <UserCheck className="w-4 h-4 mr-2" />
-                Verify Doctor Profiles
-              </Button>
-              <Button variant="outline" className="justify-start" data-testid="button-review-content">
-                <AlertCircle className="w-4 h-4 mr-2" />
-                Review Pending Content
-              </Button>
-              <Button variant="outline" className="justify-start" data-testid="button-manage-reports">
-                <AlertCircle className="w-4 h-4 mr-2" />
-                Manage Reports
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+                <div className="flex items-start gap-2">
+                  <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5" />
+                  <div>
+                    <p className="font-medium">Course enrolled</p>
+                    <p className="text-xs text-muted-foreground">15 minutes ago</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <div className="w-2 h-2 rounded-full bg-orange-500 mt-1.5" />
+                  <div>
+                    <p className="font-medium">Job application received</p>
+                    <p className="text-xs text-muted-foreground">1 hour ago</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

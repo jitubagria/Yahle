@@ -21,7 +21,21 @@ import MedicalStatistics from "@/pages/MedicalStatistics";
 import LiteratureSearch from "@/pages/LiteratureSearch";
 import ResearchServices from "@/pages/ResearchServices";
 import Masterclasses from "@/pages/Masterclasses";
+import MasterclassDetail from "@/pages/MasterclassDetail";
+import UserDashboard from "@/pages/UserDashboard";
 import AdminDashboard from "@/pages/AdminDashboard";
+import AdminDoctors from "@/pages/admin/AdminDoctors";
+import AdminHospitals from "@/pages/admin/AdminHospitals";
+import AdminCourses from "@/pages/admin/AdminCourses";
+import AdminQuizzes from "@/pages/admin/AdminQuizzes";
+import AdminMasterclasses from "@/pages/admin/AdminMasterclasses";
+import AdminJobs from "@/pages/admin/AdminJobs";
+import AdminAITools from "@/pages/admin/AdminAITools";
+import AdminResearch from "@/pages/admin/AdminResearch";
+import AdminUsers from "@/pages/admin/AdminUsers";
+import AdminMessaging from "@/pages/admin/AdminMessaging";
+import AdminPayments from "@/pages/admin/AdminPayments";
+import AdminSettings from "@/pages/admin/AdminSettings";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -29,6 +43,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/login" component={Login} />
+      <Route path="/dashboard" component={UserDashboard} />
       <Route path="/directory" component={DoctorDirectory} />
       <Route path="/doctor/:id/edit" component={DoctorProfileEdit} />
       <Route path="/doctor/:id" component={DoctorProfile} />
@@ -44,7 +59,20 @@ function Router() {
       <Route path="/ai-tools/literature-search" component={LiteratureSearch} />
       <Route path="/research-services" component={ResearchServices} />
       <Route path="/masterclasses" component={Masterclasses} />
+      <Route path="/masterclass/:id" component={MasterclassDetail} />
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/admin/doctors" component={AdminDoctors} />
+      <Route path="/admin/hospitals" component={AdminHospitals} />
+      <Route path="/admin/courses" component={AdminCourses} />
+      <Route path="/admin/quizzes" component={AdminQuizzes} />
+      <Route path="/admin/masterclasses" component={AdminMasterclasses} />
+      <Route path="/admin/jobs" component={AdminJobs} />
+      <Route path="/admin/ai-tools" component={AdminAITools} />
+      <Route path="/admin/research" component={AdminResearch} />
+      <Route path="/admin/users" component={AdminUsers} />
+      <Route path="/admin/messaging" component={AdminMessaging} />
+      <Route path="/admin/payments" component={AdminPayments} />
+      <Route path="/admin/settings" component={AdminSettings} />
       <Route component={NotFound} />
     </Switch>
   );

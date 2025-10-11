@@ -1,0 +1,101 @@
+Dashboard
+│
+├── Doctors Directory
+│   ├── View / Search / Filter
+│   ├── Import (Excel/CSV)
+│   ├── Add / Edit / Delete
+│   ├── Approval Queue (for new profiles)
+│   ├── Export (CSV/PDF)
+│   ├── Merge duplicates / Assign Hospitals
+│
+├── Hospitals Directory
+│   ├── View / Add / Edit / Delete
+│   ├── Import (Excel)
+│   ├── Link Doctors to Hospital
+│   ├── Export (PDF/CSV)
+│
+├── Courses & Learning
+│   ├── Courses
+│   │   ├── Create / Edit / Delete
+│   │   ├── Upload Content (HTML, Video, PDF)
+│   │   ├── Assign Instructors
+│   │   ├── Enrollments List
+│   │   ├── Progress Tracker
+│   │   ├── Certificate Generator
+│   └── Masterclasses
+│       ├── Create / Edit / Delete
+│       ├── Schedule / Capacity / Venue
+│       ├── Participants List
+│       ├── Attendance & Certificates
+│
+├── Quizzes
+│   ├── Create / Edit / Delete
+│   ├── Question Bank (import/export)
+│   ├── Schedule (Live / Static)
+│   ├── Leaderboard & Results
+│   ├── Auto Certificate Generator
+│   ├── Analyze Performance (accuracy/time/participants)
+│
+├── Jobs Board
+│   ├── Post Job / Edit / Archive
+│   ├── Applications View (per job)
+│   ├── Assign to Recruiter / Status
+│   ├── Export applicants list
+│
+├── AI Tools
+│   ├── Tools Management
+│   │   ├── Add new tool (name, category, endpoint, description)
+│   │   ├── Edit / Deactivate
+│   │   ├── Assign Access (role-based)
+│   ├── Requests Log
+│   │   ├── View user queries/responses
+│   │   ├── Filter by tool / user
+│   │   ├── Revoke / Approve usage
+│
+├── Research & Services
+│   ├── Service Catalogue
+│   │   ├── Add / Edit / Disable service
+│   ├── Requests
+│   │   ├── All Requests Table
+│   │   ├── Assign Provider (manual/auto)
+│   │   ├── Upload Output / Close Request
+│   │   ├── Generate Reports / Invoices
+│   ├── Providers
+│   │   ├── Add / Manage Providers
+│   │   ├── Region / Specialization tags
+│
+├── Users & CRM
+│   ├── All Users (Filter by role)
+│   ├── Verify / Suspend / Promote
+│   ├── Activity Log (last login, active modules)
+│   ├── Role Management (Doctor / Student / Provider / Admin)
+│   ├── Opt-in Status (AI, Messaging, Premium)
+│
+├── Manual Messaging
+│   ├── Filter users (by Role, Specialty, Region, Enrolled Course, etc.)
+│   ├── Message Composer (Text / Media)
+│   ├── Send via WhatsApp / Email / Internal
+│   ├── Bulk Schedule / Logs / Analytics
+│
+├── Payments & Reports
+│   ├── Transactions Table (OrderID, User, Amount, Type, Status)
+│   ├── Revenue by Module (Courses, Quizzes, Services)
+│   ├── Pending Payments
+│   ├── Refund Management
+│   ├── Generate Invoice PDF
+│
+├── Analytics & Dashboard
+│   ├── Total Doctors / Hospitals
+│   ├── Course Enrollments (daily/monthly)
+│   ├── Quiz Participation / Accuracy Trends
+│   ├── Service Requests by Type
+│   ├── Active Users / Logins per day
+│   ├── Job Applications by Region
+│   ├── AI Tool Usage Count
+│
+└── Settings
+    ├── Bigtos WhatsApp API Config
+    ├── Razorpay / Stripe Keys
+    ├── AI API Keys (OpenAI / Langchain / HuggingFace)
+    ├── SMTP / Email Settings
+    ├── Branding (Logo, Colors, Footer Info)

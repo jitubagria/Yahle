@@ -5,7 +5,7 @@ import { users, doctorProfiles, courses, quizzes, quizQuestions, jobs, mastercla
 import { eq, like, or, and, sql } from "drizzle-orm";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { bigtosService } from "./bigtos";
-import { requireAuth, getAuthenticatedUser } from "./auth";
+import { requireAuth, requireAdmin, getAuthenticatedUser } from "./auth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
@@ -495,6 +495,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/masterclasses/:id", async (req, res) => {
+    try {
+      const [masterclass] = await db.select()
+        .from(masterclasses)
+        .where(eq(masterclasses.id, parseInt(req.params.id)))
+        .limit(1);
+
+      if (!masterclass) {
+        return res.status(404).json({ error: "Masterclass not found" });
+      }
+
+      res.json(masterclass);
+    } catch (error) {
+      console.error("Get masterclass error:", error);
+      res.status(500).json({ error: "Failed to fetch masterclass" });
+    }
+  });
+
   app.post("/api/masterclasses/book", async (req, res) => {
     try {
       const { masterclassId, userId } = req.body;
@@ -666,8 +684,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== DASHBOARD ROUTES =====
+  app.get("/api/dashboard/user", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      // Get enrolled courses count
+      const enrolledCourses = await db.select({ count: sql<number>`count(*)` })
+        .from(enrollments)
+        .where(eq(enrollments.userId, userId));
+
+      // Get certificates count (courses + quizzes)
+      const quizCertificates = await db.select({ count: sql<number>`count(*)` })
+        .from(quizAttempts)
+        .where(and(
+          eq(quizAttempts.userId, userId),
+          sql`${quizAttempts.score} >= 70`
+        ));
+
+      // Get active research requests
+      const activeRequests = await db.select({ count: sql<number>`count(*)` })
+        .from(researchServiceRequests)
+        .where(and(
+          eq(researchServiceRequests.userId, userId),
+          sql`${researchServiceRequests.status} IN ('pending', 'in_progress')`
+        ));
+
+      // Get next masterclass
+      const nextMasterclass = await db.select()
+        .from(masterclassBookings)
+        .innerJoin(masterclasses, eq(masterclassBookings.masterclassId, masterclasses.id))
+        .where(and(
+          eq(masterclassBookings.userId, userId),
+          sql`${masterclasses.eventDate} > NOW()`
+        ))
+        .orderBy(masterclasses.eventDate)
+        .limit(1);
+
+      // Get doctor profile completeness
+      const [profile] = await db.select()
+        .from(doctorProfiles)
+        .where(eq(doctorProfiles.userId, userId))
+        .limit(1);
+
+      let profileCompleteness = 20; // Base for having account
+      if (profile) {
+        if (profile.name) profileCompleteness += 20;
+        if (profile.specialty) profileCompleteness += 20;
+        if (profile.experience) profileCompleteness += 20;
+        if (profile.education) profileCompleteness += 20;
+      }
+
+      res.json({
+        profileCompleteness,
+        enrolledCourses: enrolledCourses[0]?.count || 0,
+        certificates: (enrolledCourses[0]?.count || 0) + (quizCertificates[0]?.count || 0),
+        activeRequests: activeRequests[0]?.count || 0,
+        nextMasterclass: nextMasterclass[0]?.masterclasses || null,
+        quizRank: '-',
+        recentActivity: []
+      });
+    } catch (error) {
+      console.error("Get user dashboard error:", error);
+      res.status(500).json({ error: "Failed to fetch dashboard data" });
+    }
+  });
+
   // ===== ADMIN ROUTES =====
-  app.get("/api/admin/stats", async (req, res) => {
+  app.get("/api/admin/stats", requireAdmin, async (req, res) => {
     try {
       const [userStats] = await db.execute(`
         SELECT 
@@ -698,7 +786,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/admin/users", async (req, res) => {
+  app.get("/api/admin/users", requireAdmin, async (req, res) => {
     try {
       const allUsers = await db.select().from(users).limit(100);
       res.json(allUsers);

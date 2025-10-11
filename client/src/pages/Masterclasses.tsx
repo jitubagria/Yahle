@@ -1,27 +1,13 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock, Users, MapPin, Award } from 'lucide-react';
-import { apiRequest, queryClient } from '@/lib/queryClient';
-import { useToast } from '@/hooks/use-toast';
+import { Link } from 'wouter';
 
 export default function Masterclasses() {
-  const { toast } = useToast();
-
-  const { data: masterclasses, isLoading } = useQuery({
+  const { data: masterclasses, isLoading } = useQuery<any[]>({
     queryKey: ['/api/masterclasses'],
-  });
-
-  const bookMutation = useMutation({
-    mutationFn: (masterclassId: number) => apiRequest('POST', '/api/masterclasses/book', { masterclassId }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/masterclasses'] });
-      toast({ title: 'Success', description: 'Masterclass booked successfully!' });
-    },
-    onError: () => {
-      toast({ title: 'Error', description: 'Failed to book masterclass', variant: 'destructive' });
-    },
   });
 
   return (
@@ -122,13 +108,11 @@ export default function Masterclasses() {
                     ) : (
                       <span className="text-lg font-semibold text-green-600">Free</span>
                     )}
-                    <Button
-                      onClick={() => bookMutation.mutate(masterclass.id)}
-                      disabled={isFull || bookMutation.isPending}
-                      data-testid={`button-book-${masterclass.id}`}
-                    >
-                      {isFull ? 'Fully Booked' : bookMutation.isPending ? 'Booking...' : 'Book Now'}
-                    </Button>
+                    <Link href={`/masterclass/${masterclass.id}`}>
+                      <Button data-testid={`button-view-${masterclass.id}`}>
+                        View More
+                      </Button>
+                    </Link>
                   </CardFooter>
                 </Card>
               );
