@@ -16,7 +16,7 @@ const phoneSchema = z.object({
 });
 
 const otpSchema = z.object({
-  otp: z.string().length(6, 'OTP must be 6 digits'),
+  otp: z.string().trim().length(6, 'OTP must be 6 digits'),
 });
 
 export default function Login() {
@@ -143,6 +143,8 @@ export default function Login() {
                       <FormLabel>OTP Code</FormLabel>
                       <FormControl>
                         <Input 
+                          type="text"
+                          inputMode="numeric"
                           placeholder="123456" 
                           {...field} 
                           maxLength={6}
