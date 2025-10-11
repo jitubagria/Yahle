@@ -238,9 +238,9 @@ export default function Quizzes() {
                 </CardContent>
 
                 <CardFooter>
-                  <Link href={`/quiz/${quiz.id}`} className="w-full">
+                  <Link href={quiz.type === 'live' ? `/quiz/${quiz.id}/lobby` : `/quiz/${quiz.id}`} className="w-full">
                     <Button className="w-full" data-testid={`button-start-quiz-${quiz.id}`}>
-                      {quiz.type === 'live' ? 'Join Live Quiz' : 'Start Quiz'}
+                      {quiz.type === 'live' ? 'Join Lobby' : 'Start Quiz'}
                     </Button>
                   </Link>
                 </CardFooter>
