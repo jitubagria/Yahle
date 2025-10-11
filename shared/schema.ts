@@ -460,6 +460,34 @@ export const aiToolRequestCreateSchema = z.object({
   inputData: z.string(),
 });
 
+// WhatsApp notification schemas
+export const courseEnrollmentNotificationSchema = z.object({
+  userId: z.number(),
+  phone: z.string().min(10),
+  courseName: z.string().min(1),
+});
+
+export const quizCertificateNotificationSchema = z.object({
+  userId: z.number(),
+  phone: z.string().min(10),
+  quizName: z.string().min(1),
+  score: z.number().min(0).max(100),
+});
+
+export const masterclassBookingNotificationSchema = z.object({
+  userId: z.number(),
+  phone: z.string().min(10),
+  masterclassName: z.string().min(1),
+  scheduledAt: z.string().min(1),
+});
+
+export const researchServiceNotificationSchema = z.object({
+  userId: z.number(),
+  phone: z.string().min(10),
+  serviceName: z.string().min(1),
+  status: z.string().min(1),
+});
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;

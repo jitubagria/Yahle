@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { db } from "./db";
-import { users, doctorProfiles, courses, quizzes, quizQuestions, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, insertUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema } from "@shared/schema";
+import { users, doctorProfiles, courses, quizzes, quizQuestions, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, insertUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema } from "@shared/schema";
 import { eq, like, or, and, sql } from "drizzle-orm";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { bigtosService } from "./bigtos";
@@ -689,62 +689,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ===== WHATSAPP NOTIFICATION ROUTES =====
+  // Note: These endpoints require authentication and validate that the user owns the phone number
+  
   app.post("/api/notifications/course-enrollment", async (req, res) => {
     try {
-      const { phone, courseName } = req.body;
-      if (!phone || !courseName) {
-        return res.status(400).json({ error: "Phone and courseName are required" });
+      const validated = courseEnrollmentNotificationSchema.parse(req.body);
+      
+      // Verify user exists and owns this phone number
+      const [user] = await db.select().from(users)
+        .where(and(eq(users.id, validated.userId), eq(users.phone, validated.phone)))
+        .limit(1);
+      
+      if (!user) {
+        return res.status(403).json({ error: "Unauthorized: User does not match phone number" });
       }
 
-      await bigtosService.sendCourseEnrollmentNotification(phone, courseName);
+      await bigtosService.sendCourseEnrollmentNotification(validated.phone, validated.courseName);
       res.json({ success: true, message: "Enrollment notification sent" });
     } catch (error) {
       console.error("Send enrollment notification error:", error);
+      if (error instanceof Error && error.name === 'ZodError') {
+        return res.status(400).json({ error: "Invalid request data" });
+      }
       res.status(500).json({ error: "Failed to send notification" });
     }
   });
 
   app.post("/api/notifications/quiz-certificate", async (req, res) => {
     try {
-      const { phone, quizName, score } = req.body;
-      if (!phone || !quizName || score === undefined) {
-        return res.status(400).json({ error: "Phone, quizName, and score are required" });
+      const validated = quizCertificateNotificationSchema.parse(req.body);
+      
+      // Verify user exists and owns this phone number
+      const [user] = await db.select().from(users)
+        .where(and(eq(users.id, validated.userId), eq(users.phone, validated.phone)))
+        .limit(1);
+      
+      if (!user) {
+        return res.status(403).json({ error: "Unauthorized: User does not match phone number" });
       }
 
-      await bigtosService.sendQuizCertificateNotification(phone, quizName, score);
+      await bigtosService.sendQuizCertificateNotification(validated.phone, validated.quizName, validated.score);
       res.json({ success: true, message: "Quiz certificate notification sent" });
     } catch (error) {
       console.error("Send quiz notification error:", error);
+      if (error instanceof Error && error.name === 'ZodError') {
+        return res.status(400).json({ error: "Invalid request data" });
+      }
       res.status(500).json({ error: "Failed to send notification" });
     }
   });
 
   app.post("/api/notifications/masterclass-booking", async (req, res) => {
     try {
-      const { phone, masterclassName, scheduledAt } = req.body;
-      if (!phone || !masterclassName || !scheduledAt) {
-        return res.status(400).json({ error: "Phone, masterclassName, and scheduledAt are required" });
+      const validated = masterclassBookingNotificationSchema.parse(req.body);
+      
+      // Verify user exists and owns this phone number
+      const [user] = await db.select().from(users)
+        .where(and(eq(users.id, validated.userId), eq(users.phone, validated.phone)))
+        .limit(1);
+      
+      if (!user) {
+        return res.status(403).json({ error: "Unauthorized: User does not match phone number" });
       }
 
-      await bigtosService.sendMasterclassBookingNotification(phone, masterclassName, scheduledAt);
+      await bigtosService.sendMasterclassBookingNotification(validated.phone, validated.masterclassName, validated.scheduledAt);
       res.json({ success: true, message: "Masterclass booking notification sent" });
     } catch (error) {
       console.error("Send masterclass notification error:", error);
+      if (error instanceof Error && error.name === 'ZodError') {
+        return res.status(400).json({ error: "Invalid request data" });
+      }
       res.status(500).json({ error: "Failed to send notification" });
     }
   });
 
   app.post("/api/notifications/research-service", async (req, res) => {
     try {
-      const { phone, serviceName, status } = req.body;
-      if (!phone || !serviceName || !status) {
-        return res.status(400).json({ error: "Phone, serviceName, and status are required" });
+      const validated = researchServiceNotificationSchema.parse(req.body);
+      
+      // Verify user exists and owns this phone number
+      const [user] = await db.select().from(users)
+        .where(and(eq(users.id, validated.userId), eq(users.phone, validated.phone)))
+        .limit(1);
+      
+      if (!user) {
+        return res.status(403).json({ error: "Unauthorized: User does not match phone number" });
       }
 
-      await bigtosService.sendResearchServiceNotification(phone, serviceName, status);
+      await bigtosService.sendResearchServiceNotification(validated.phone, validated.serviceName, validated.status);
       res.json({ success: true, message: "Research service notification sent" });
     } catch (error) {
       console.error("Send research notification error:", error);
+      if (error instanceof Error && error.name === 'ZodError') {
+        return res.status(400).json({ error: "Invalid request data" });
+      }
       res.status(500).json({ error: "Failed to send notification" });
     }
   });

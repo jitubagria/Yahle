@@ -6,8 +6,11 @@ export class BigtosService {
   private apiUrl = 'https://www.cp.bigtos.com/api/v1/sendmessage';
 
   constructor() {
-    // Load API key from environment variable, fallback to provided key
-    this.apiKey = process.env.BIGTOS_API_KEY || 'UAI5ZVZGEBDOCSUNIVERSECOM4NKG0S1XQ';
+    // Require API key from environment variable - fail fast if missing
+    this.apiKey = process.env.BIGTOS_API_KEY;
+    if (!this.apiKey) {
+      throw new Error('BIGTOS_API_KEY environment variable is required but not set');
+    }
   }
 
   /**
@@ -89,7 +92,7 @@ export class BigtosService {
       });
 
       const responseText = await response.text();
-      let responseData;
+      let responseData: any;
       
       try {
         responseData = JSON.parse(responseText);
@@ -97,8 +100,27 @@ export class BigtosService {
         responseData = { raw: responseText };
       }
 
-      // Log the message to database
-      await this.logMessage(mobile, message, imageUrl, type, JSON.stringify(responseData), 'success');
+      // Check if BigTos API returned success
+      // BigTos typically returns { status: 'success' } or similar on success
+      const isSuccess = response.ok && (
+        responseData.status === 'success' || 
+        responseData.success === true ||
+        responseData.status === 'sent'
+      );
+
+      // Log the message to database with correct status
+      await this.logMessage(
+        mobile, 
+        message, 
+        imageUrl, 
+        type, 
+        JSON.stringify(responseData), 
+        isSuccess ? 'success' : 'failed'
+      );
+
+      if (!isSuccess) {
+        throw new Error(`BigTos API failed: ${JSON.stringify(responseData)}`);
+      }
 
       return responseData;
     } catch (error) {
