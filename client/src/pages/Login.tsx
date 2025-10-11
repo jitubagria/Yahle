@@ -99,13 +99,15 @@ export default function Login() {
           <div>
             <CardTitle className="text-2xl">Welcome to DocsUniverse</CardTitle>
             <CardDescription>
-              {step === 'phone' ? 'Enter your phone number to continue' : 'Enter the OTP sent to your phone'}
+              {step === 'phone' 
+                ? 'Enter your phone number to continue' 
+                : `Enter the OTP sent to ${phone}`}
             </CardDescription>
           </div>
         </CardHeader>
         <CardContent>
           {step === 'phone' ? (
-            <Form {...phoneForm}>
+            <Form {...phoneForm} key="phone-form">
               <form onSubmit={phoneForm.handleSubmit(onPhoneSubmit)} className="space-y-6">
                 <FormField
                   control={phoneForm.control}
@@ -115,9 +117,11 @@ export default function Login() {
                       <FormLabel>Phone Number</FormLabel>
                       <FormControl>
                         <Input 
+                          type="tel"
                           placeholder="+91 9876543210" 
                           {...field} 
                           data-testid="input-phone"
+                          autoComplete="tel"
                         />
                       </FormControl>
                       <FormMessage />
@@ -135,7 +139,7 @@ export default function Login() {
               </form>
             </Form>
           ) : (
-            <Form {...otpForm}>
+            <Form {...otpForm} key="otp-form">
               <form onSubmit={otpForm.handleSubmit(onOtpSubmit)} className="space-y-6">
                 <FormField
                   control={otpForm.control}
@@ -151,6 +155,7 @@ export default function Login() {
                           {...field} 
                           maxLength={6}
                           data-testid="input-otp"
+                          autoComplete="off"
                         />
                       </FormControl>
                       <FormMessage />
