@@ -757,21 +757,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== ADMIN ROUTES =====
   app.get("/api/admin/stats", requireAdmin, async (req, res) => {
     try {
-      const [userStats] = await db.execute(`
+      // Get user statistics
+      const userStatsResult = await db.execute(sql`
         SELECT 
           COUNT(*) as total_users,
           COUNT(CASE WHEN role = 'doctor' THEN 1 END) as total_doctors,
           COUNT(CASE WHEN role = 'student' THEN 1 END) as total_students
         FROM users
       `);
+      const userStats = userStatsResult.rows[0];
 
-      const [jobStats] = await db.execute(`
+      // Get job statistics
+      const jobStatsResult = await db.execute(sql`
         SELECT COUNT(*) as active_jobs FROM jobs WHERE is_active = true
       `);
+      const jobStats = jobStatsResult.rows[0];
 
-      const [courseStats] = await db.execute(`
+      // Get course statistics
+      const courseStatsResult = await db.execute(sql`
         SELECT COUNT(*) as total_courses FROM courses
       `);
+      const courseStats = courseStatsResult.rows[0];
 
       res.json({
         totalUsers: parseInt(userStats.total_users as string) || 0,

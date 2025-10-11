@@ -161,6 +161,38 @@ All notifications are logged in `bigtos_messages` table with delivery status.
 
 ## Recent Changes (Latest)
 
+### Dashboard System & CRM Foundation (Completed - October 11, 2025)
+- ✅ **User Dashboard** (`/dashboard`) with personalized overview widgets:
+  - Profile completeness tracker
+  - Enrolled courses summary with progress
+  - Quiz performance and leaderboard rank
+  - Active research service requests
+  - Certificates earned counter
+  - Quick navigation to all user sections
+- ✅ **Admin Dashboard** (`/admin`) - Comprehensive CRM foundation:
+  - Real-time analytics overview (users, courses, enrollments, revenue)
+  - Navigation to 12 management modules (all routes functional with stub pages)
+  - Module grid with color-coded icons and descriptions
+- ✅ **Role-Based Access Control (RBAC)**:
+  - `requireAdmin` middleware for server-side admin verification (returns 403 for non-admins)
+  - All `/api/admin/*` endpoints protected with admin role check
+  - Client-side role validation with redirect for unauthorized access
+  - Session-based authentication using HttpOnly cookies
+- ✅ **Admin Module Structure** (stub pages ready for implementation):
+  1. Doctors Directory Management
+  2. Hospitals Directory Management
+  3. Courses & Learning Management
+  4. Quizzes Management
+  5. Masterclasses Management
+  6. Jobs Board Management
+  7. AI Tools Management
+  8. Research & Services Management
+  9. Users & CRM Panel
+  10. Manual Messaging Panel
+  11. Payments & Reports
+  12. Settings
+- ✅ SPA-friendly navigation using wouter Link components throughout
+
 ### WhatsApp Integration & Authentication (Completed)
 - ✅ BigTos WhatsApp API integration with development mode
 - ✅ Server-side session authentication with express-session

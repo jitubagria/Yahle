@@ -1,0 +1,315 @@
+quizzes
+Column	Type	Description
+id	UUID	
+title	VARCHAR(255)	Quiz name
+category	VARCHAR(100)	Specialty
+difficulty	ENUM('beginner','intermediate','advanced')	
+type	ENUM('free','paid','live','practice')	
+total_questions	INT	
+question_time	INT	seconds per question
+duration	INT	Total seconds
+passing_score	INT	%
+entry_fee	DECIMAL(10,2)	
+reward_info	TEXT	Prize details
+certificate_type	VARCHAR(100)	
+start_time	TIMESTAMP	
+end_time	TIMESTAMP	
+status	ENUM('draft','active','completed')	
+quiz_questions
+Column	Type
+id	UUID
+quiz_id	FK(quizzes.id)
+text	TEXT
+image	TEXT
+options	JSONB (e.g., {A:"...",B:"...",C:"...",D:"..."})
+correct_option	CHAR(1)
+marks	INT
+quiz_sessions
+Column	Type	Description
+id	UUID	Session ID
+quiz_id	FK	
+current_question	INT	index
+started_at	TIMESTAMP	
+status	ENUM('waiting','running','finished')	
+quiz_responses
+
+| id | UUID |
+| quiz_id | FK |
+| question_id | FK |
+| user_id | FK |
+| selected_option | CHAR(1) |
+| is_correct | BOOLEAN |
+| response_time | INT (sec) |
+| score | FLOAT |
+| created_at | TIMESTAMP |
+
+quiz_leaderboard
+
+| id | UUID |
+| quiz_id | FK |
+| user_id | FK |
+| total_score | FLOAT |
+| avg_time | FLOAT |
+| rank | INT |
+| certificate_url | TEXT |
+
+certificates
+
+| id | UUID |
+| user_id | FK |
+| quiz_id | FK (nullable) |
+| course_id | FK (nullable) |
+| type | VARCHAR(50) |
+| url | TEXT |
+| sent | BOOLEAN |
+| sent_at | TIMESTAMP |
+
+(Existing course, job, masterclass, AI tool tables from prior plan remain.)
+
+4️⃣ QUIZ PARTICIPATION FLOW (REAL-TIME)
+A. Join Flow
+
+User logs in via WhatsApp OTP (BigTos).
+
+Frontend calls POST /api/quizzes/:id/join.
+
+Server registers user in quiz_sessions_participants.
+
+B. Countdown
+
+Server sends WebSocket event:
+
+{ "event": "quiz_countdown", "quiz_id": 12, "seconds": 10 }
+
+
+All connected clients display synchronized 10→0 countdown.
+
+C. Question Display
+
+Server broadcasts:
+
+{
+  "event": "new_question",
+  "quiz_id": 12,
+  "question_no": 1,
+  "data": { "text":"...", "options":{A:"",B:""} }
+}
+
+
+Timer on client counts down (N seconds).
+
+User submits via Socket or REST:
+
+{ "event": "submit_answer", "question_id": "q1", "option": "B", "time": 6 }
+
+
+Backend validates, scores, and stores in DB.
+
+D. Leaderboard Interval
+
+After question time ends:
+
+Server aggregates scores & times.
+
+Broadcasts:
+
+{ "event": "leaderboard_update", "quiz_id": 12, "top":[...] }
+
+
+Clients show animated leaderboard for 7 seconds.
+
+E. Loop
+
+Repeat until all questions finished.
+
+F. Finalization
+
+Server computes final ranks.
+
+Saves to quiz_leaderboard.
+
+Generates certificate PDF via Puppeteer.
+
+Calls BigTos API to send certificate link/image.
+
+5️⃣ FRONTEND – REACT QUIZ EXPERIENCE
+Page 1: /quizzes
+
+Cards grid (from API /api/quizzes?status=active)
+
+Title
+
+Specialty / Difficulty
+
+Duration / Questions
+
+Start Date
+
+Participants
+
+Fee / Prize
+
+Button: “Join” / “Start”
+
+Page 2: /quiz/:id/lobby
+
+Title + Info
+
+Countdown timer (real-time)
+
+Participants counter
+
+“Waiting for start…”
+
+Page 3: /quiz/:id/play
+
+Header: question number, timer, score
+Body: question + options (radio buttons)
+Footer: submit button disabled after N seconds
+
+After submission:
+
+Show correct answer highlight
+
+Short 3-second “Your Rank: #7” banner
+
+Wait for next broadcast.
+
+Page 4: /quiz/:id/result
+
+Total score
+
+Rank
+
+Accuracy
+
+Speed
+
+Certificate Download
+
+“Share on WhatsApp” button
+
+6️⃣ ADMIN DASHBOARD (REACT + CHARTS.JS)
+Navigation
+Dashboard
+ ├─ Quizzes
+ │   ├─ All Quizzes
+ │   ├─ Create/Edit
+ │   ├─ Question Bank
+ │   ├─ Live Sessions
+ │   └─ Certificates
+ ├─ Courses / Masterclasses
+ ├─ Jobs
+ ├─ AI Tools
+ ├─ Research & Services
+ ├─ Users
+ ├─ Manual Messaging
+ └─ Analytics
+
+Key Features
+
+Quiz Builder: Dynamic form for questions (drag-drop reorder).
+
+Excel Import/Export: Bulk question upload.
+
+Start/Stop Quiz: Button triggers Socket event.
+
+Live Monitor: Real-time leaderboard chart.
+
+Certificates: Manual resend.
+
+Reports: Export participants, scores, ranks.
+
+Admin Analytics Widgets
+Widget	Example
+Total Quizzes	28
+Participants Today	845
+Avg Accuracy	78%
+Certificates Issued	340
+Paid Quiz Revenue	₹12,400
+7️⃣ COMMUNICATION PANEL (BigTos)
+Action	API Endpoint	Description
+Send Quiz Reminder	/api/notifications/quiz-reminder	Broadcast to registered users
+Send Certificate	/api/notifications/send-certificate	With PDF link
+Bulk Messages	/api/notifications/bulk	Role / Specialty / Region filters
+
+Payload example:
+
+{
+  "mobileno": "919999999999",
+  "msg": "Your quiz starts in 5 mins. Click https://docsuniverse.app/quiz/123",
+  "type": "Text"
+}
+
+8️⃣ AUTHENTICATION (BigTos WhatsApp OTP + JWT)
+
+User enters WhatsApp number.
+
+API → BigTos OTP endpoint.
+
+Verify OTP → issue JWT.
+
+Store JWT in localStorage / cookie.
+
+Use middleware to protect /api/quizzes/play.
+
+9️⃣ CERTIFICATE GENERATION FLOW
+
+HTML template rendered using ejs:
+
+<p>Dr. {{name}}, you achieved {{rank}} in {{quiz_title}}</p>
+
+
+Puppeteer converts to A4 PDF.
+
+Upload to Cloudinary → save URL.
+
+Send WhatsApp via BigTos “File” API.
+
+🔟 DEPLOYMENT ON REPLIT
+
+Backend: Node.js (Express) run on port 3000
+
+npm run dev
+
+
+Database: PostgreSQL (Replit DB extension or external Neon.tech)
+
+Frontend: React (Vite)
+
+npm run build && npm run preview
+
+
+Environment Variables (.env):
+
+DATABASE_URL=postgresql://...
+BIGTOS_KEY=...
+RAZORPAY_KEY=...
+JWT_SECRET=...
+
+
+Procfile (optional):
+
+web: node server/dist/server.js
+
+🧮 API SUMMARY
+Method	Endpoint	Purpose
+GET	/api/quizzes	List quizzes
+GET	/api/quizzes/:id	Quiz details
+POST	/api/quizzes	Create quiz (admin)
+POST	/api/quizzes/:id/join	Join quiz
+WS	/ws/quiz	Real-time events
+POST	/api/quiz/:id/submit	Save answer
+GET	/api/quiz/:id/result	Final score
+GET	/api/quiz/:id/leaderboard	Leaderboard
+POST	/api/certificates/send	Send PDF
+POST	/api/notifications/send	BigTos message
+🧠 DASHBOARD ADDITIONS VS PHP PLAN
+Area	Enhancement
+Analytics	Chart.js dashboards for quiz performance
+User CRM	Realtime participant monitor (Socket)
+Messaging	Template-based WhatsApp campaigns
+Certificates	Auto + manual resend options
+Payments	Razorpay webhook to credit wallet
+AI Tools Integration	Suggest “related quiz” via user specialization
+Modern UI	Tailwind cards, dark mode toggle, persistent filters
