@@ -688,6 +688,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== WHATSAPP NOTIFICATION ROUTES =====
+  app.post("/api/notifications/course-enrollment", async (req, res) => {
+    try {
+      const { phone, courseName } = req.body;
+      if (!phone || !courseName) {
+        return res.status(400).json({ error: "Phone and courseName are required" });
+      }
+
+      await bigtosService.sendCourseEnrollmentNotification(phone, courseName);
+      res.json({ success: true, message: "Enrollment notification sent" });
+    } catch (error) {
+      console.error("Send enrollment notification error:", error);
+      res.status(500).json({ error: "Failed to send notification" });
+    }
+  });
+
+  app.post("/api/notifications/quiz-certificate", async (req, res) => {
+    try {
+      const { phone, quizName, score } = req.body;
+      if (!phone || !quizName || score === undefined) {
+        return res.status(400).json({ error: "Phone, quizName, and score are required" });
+      }
+
+      await bigtosService.sendQuizCertificateNotification(phone, quizName, score);
+      res.json({ success: true, message: "Quiz certificate notification sent" });
+    } catch (error) {
+      console.error("Send quiz notification error:", error);
+      res.status(500).json({ error: "Failed to send notification" });
+    }
+  });
+
+  app.post("/api/notifications/masterclass-booking", async (req, res) => {
+    try {
+      const { phone, masterclassName, scheduledAt } = req.body;
+      if (!phone || !masterclassName || !scheduledAt) {
+        return res.status(400).json({ error: "Phone, masterclassName, and scheduledAt are required" });
+      }
+
+      await bigtosService.sendMasterclassBookingNotification(phone, masterclassName, scheduledAt);
+      res.json({ success: true, message: "Masterclass booking notification sent" });
+    } catch (error) {
+      console.error("Send masterclass notification error:", error);
+      res.status(500).json({ error: "Failed to send notification" });
+    }
+  });
+
+  app.post("/api/notifications/research-service", async (req, res) => {
+    try {
+      const { phone, serviceName, status } = req.body;
+      if (!phone || !serviceName || !status) {
+        return res.status(400).json({ error: "Phone, serviceName, and status are required" });
+      }
+
+      await bigtosService.sendResearchServiceNotification(phone, serviceName, status);
+      res.json({ success: true, message: "Research service notification sent" });
+    } catch (error) {
+      console.error("Send research notification error:", error);
+      res.status(500).json({ error: "Failed to send notification" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
