@@ -14,6 +14,7 @@ import CourseDetail from "@/pages/CourseDetail";
 import Quizzes from "@/pages/Quizzes";
 import QuizLobby from "@/pages/QuizLobby";
 import QuizPlay from "@/pages/QuizPlay";
+import QuizResult from "@/pages/QuizResult";
 import QuizTake from "@/pages/QuizTake";
 import Jobs from "@/pages/Jobs";
 import JobDetail from "@/pages/JobDetail";
@@ -54,6 +55,7 @@ function Router() {
       <Route path="/quizzes" component={Quizzes} />
       <Route path="/quiz/:id/lobby" component={QuizLobby} />
       <Route path="/quiz/:id/play" component={QuizPlay} />
+      <Route path="/quiz/:id/result" component={QuizResult} />
       <Route path="/quiz/:id" component={QuizTake} />
       <Route path="/jobs" component={Jobs} />
       <Route path="/job/:id" component={JobDetail} />
