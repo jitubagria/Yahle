@@ -76,6 +76,7 @@ function Router() {
       <Route path="/ai-tools/medical-statistics" component={MedicalStatistics} />
       <Route path="/ai-tools/literature-search" component={LiteratureSearch} />
       <Route path="/ai-tools/automate-npa" component={AutomateNPA} />
+      <Route path="/automate-npa" component={AutomateNPA} />
       <Route path="/medical-voices" component={MedicalVoices} />
       <Route path="/medical-voices/:slug" component={MedicalVoiceDetail} />
       <Route path="/research-services" component={ResearchServices} />

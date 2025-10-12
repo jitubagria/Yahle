@@ -4,14 +4,14 @@ import { npaService } from './npaService';
 /**
  * NPA Certificate Automation Scheduler
  * 
- * Runs daily at 9:00 AM to check for certificates that need to be generated
+ * Runs daily at 3:00 AM to check for certificates that need to be generated
  * based on doctor opt-in preferences (preferredDay matching current day of month)
  */
 export function initializeNPAScheduler() {
-  // Run every day at 9:00 AM
+  // Run every day at 3:00 AM
   // Format: minute hour day month weekday
-  // '0 9 * * *' = At 9:00 AM every day
-  cron.schedule('0 9 * * *', async () => {
+  // '0 3 * * *' = At 3:00 AM every day
+  cron.schedule('0 3 * * *', async () => {
     console.log('[NPA Scheduler] Starting daily NPA certificate automation...');
     
     try {
@@ -22,5 +22,5 @@ export function initializeNPAScheduler() {
     }
   });
 
-  console.log('[NPA Scheduler] Initialized - will run daily at 9:00 AM');
+  console.log('[NPA Scheduler] Initialized - will run daily at 3:00 AM');
 }
