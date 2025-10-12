@@ -186,29 +186,38 @@ All notifications are logged in `bigtos_messages` table with delivery status.
   - Tests cover create, edit, delete operations with proper API calls
   - Success toasts and UI updates verified
 
-### Enhanced Certificate Generation System (In Progress - October 12, 2025)
+### Complete Certificate & Notification System (Completed - October 12, 2025)
 - ✅ **Database Schema Extended**:
   - Created `entity_templates` table for storing certificate templates (supports courses, quizzes, masterclasses)
   - Enhanced `certificates` table with entity_type, rank, score, background_image, output_url, sent_status fields
   - Unique constraint on (entity_type, entity_id) for templates
 - ✅ **Certificate Generation Service** (`server/services/certificates.ts`):
-  - Image manipulation using Jimp library
+  - Image manipulation using Jimp library (v1.x)
   - Dynamic text overlay with configurable positions (JSON-based)
   - Support for name, title, date, score, rank fields
-  - Auto-generation on completion with WhatsApp delivery hook (BigTos API ready)
+  - Automatic WhatsApp delivery via BigTos API sendTextImage
   - Base64 output URL generation (upgradeable to cloud storage)
-- 🚧 **Admin Template Management** (Pending):
-  - API routes for template upload and configuration
-  - UI for template positioning and preview
-  - Integration with object storage for template images
-- 🚧 **Automatic Triggering** (Pending):
-  - Course completion → certificate generation
-  - Quiz completion → certificate with score/rank
-  - Masterclass attendance → certificate generation
-- 📋 **Integration Points**:
-  - WhatsApp delivery via BigTos API (placeholder implemented)
-  - Object storage for certificate images (to be integrated)
-  - Admin dashboard for certificate management and resending
+- ✅ **Admin Template Management UI** (`/admin/certificates`):
+  - Full CRUD interface for certificate templates
+  - Image upload with object storage integration
+  - JSON-based text positioning configuration
+  - Template preview and testing
+  - Supports all entity types (courses, quizzes, masterclasses)
+- ✅ **Automatic Certificate Triggers**:
+  - **Course Completion**: Auto-generates certificate when all modules completed
+  - **Quiz Completion**: Auto-generates certificate with score when quiz passed
+  - **Masterclass Booking**: Auto-generates certificate on booking (booking = attendance)
+  - All triggers include automatic WhatsApp delivery with certificate image
+- ✅ **WhatsApp Notification Integration**:
+  - **Course Enrollments**: Automatic confirmation message when user enrolls
+  - **Masterclass Bookings**: Booking confirmation with schedule details
+  - **Research Service Updates**: Status change notifications via admin endpoint
+  - All notifications logged to `bigtos_messages` table
+  - Graceful error handling prevents notification failures from blocking business logic
+- ✅ **Admin Research Service Management**:
+  - New endpoint: `PATCH /api/admin/research-services/requests/:id`
+  - Admin-only status updates (pending, in_progress, completed, cancelled)
+  - Automatic WhatsApp notification on status change
 
 ## Recent Changes (Previous)
 
