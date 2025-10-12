@@ -1,0 +1,592 @@
+here’s a complete, production-grade architecture plan for Medical Voices inside DocsUniverse, built for your modern stack (React + Node.js/Express + PostgreSQL + Prisma, with WhatsApp via BigTos). It covers data model, APIs, workflows, UI/UX, security, operations, and rollout.
+
+🩺 Medical Voices — Full Architecture (DocsUniverse)
+0) Objectives & Scope
+
+Create a doctor-led advocacy hub (Change.org-style) with:
+
+Public campaign pages (“Voices”) you can Support, Share, and Join Gatherings for.
+
+Admin creation & moderation of voices, updates, documents, images, contact persons, and gatherings.
+
+Supporter management, messaging, and analytics.
+
+Deep integration with DocsUniverse users, notifications (BigTos), and homepage banner.
+
+1) System Overview
+
+Stack
+
+Frontend: React (Vite/Next) + Tailwind + Framer Motion
+
+Backend: Node.js + Express (TypeScript), Socket optional (live counters)
+
+DB: PostgreSQL (Prisma ORM)
+
+Files: Cloud storage (Cloudinary/Supabase) for images/docs
+
+Messaging: BigTos WhatsApp API (primary), Email (optional SMTP)
+
+Auth: Existing JWT (WhatsApp OTP/Bigtos) or platform session
+
+Key Modules
+
+Voices (campaigns)
+
+Supporters
+
+Updates (broadcastable)
+
+Documents & media
+
+Gatherings (optional, per voice)
+
+Contact persons (leaders/spokespersons)
+
+Admin CRM (creation, moderation, analytics)
+
+Homepage banner integration
+
+2) Data Model (PostgreSQL via Prisma)
+Enums
+-- DB-level (or Prisma enum)
+voice_status:    'draft' | 'active' | 'closed'
+visibility:      'public' | 'private'
+rsvp_status:     'interested' | 'confirmed' | 'withdrawn'
+
+Tables
+medical_voices
+
+id SERIAL PK
+
+title VARCHAR(255) NOT NULL
+
+slug VARCHAR(255) UNIQUE NOT NULL // SEO, /voices/:slug
+
+short_description TEXT
+
+description TEXT // Rich HTML
+
+category VARCHAR(100) // Policy/Safety/Education/Ethics
+
+banner_image TEXT
+
+related_documents JSONB // [{"name","url"}]
+
+related_images JSONB // ["url1","url2"]
+
+concerned_authority VARCHAR(255) // e.g., Health Dept
+
+target_department VARCHAR(255) // e.g., NMC
+
+media_contacts TEXT // optional list
+
+visibility visibility DEFAULT 'public'
+
+status voice_status DEFAULT 'active'
+
+supporters_count INT DEFAULT 0
+
+Gathering fields
+
+has_gathering BOOLEAN DEFAULT FALSE
+
+gathering_date TIMESTAMP
+
+gathering_location VARCHAR(255)
+
+gathering_address TEXT
+
+gathering_city VARCHAR(100)
+
+gathering_state VARCHAR(100)
+
+gathering_pin VARCHAR(20)
+
+gathering_map_link TEXT
+
+gathering_notes TEXT
+
+creator_id INT REFERENCES users(id)
+
+created_at TIMESTAMP DEFAULT now()
+
+updated_at TIMESTAMP DEFAULT now()
+
+Indexes: (status, visibility), (slug) unique, (category), gin on JSONB as needed
+
+medical_voice_supporters
+
+id SERIAL PK
+
+voice_id INT REFERENCES medical_voices(id)
+
+user_id INT REFERENCES users(id)
+
+motivation_note TEXT
+
+joined_at TIMESTAMP DEFAULT now()
+
+Unique constraint: (voice_id, user_id)
+
+Indexes: (voice_id), (user_id)
+
+medical_voice_updates
+
+id SERIAL PK
+
+voice_id INT REFERENCES medical_voices(id)
+
+update_title VARCHAR(255)
+
+update_body TEXT // HTML/markdown
+
+created_at TIMESTAMP DEFAULT now()
+
+notify_supporters BOOLEAN DEFAULT TRUE
+
+medical_voice_contacts
+
+id SERIAL PK
+
+voice_id INT REFERENCES medical_voices(id)
+
+name VARCHAR(150)
+
+designation VARCHAR(100) // Resident Rep, SR, MO, etc.
+
+phone VARCHAR(20)
+
+email VARCHAR(150)
+
+is_primary BOOLEAN DEFAULT FALSE
+
+visible BOOLEAN DEFAULT TRUE
+
+created_at TIMESTAMP DEFAULT now()
+
+medical_voice_gathering_joins
+
+id SERIAL PK
+
+voice_id INT REFERENCES medical_voices(id)
+
+user_id INT REFERENCES users(id)
+
+status rsvp_status DEFAULT 'interested'
+
+remarks TEXT
+
+joined_at TIMESTAMP DEFAULT now()
+
+Unique constraint: (voice_id, user_id)
+
+(Optional) audit_logs
+
+id SERIAL PK
+
+actor_id INT REFERENCES users(id)
+
+entity_type VARCHAR(50) // 'voice','update','contact','gathering'
+
+entity_id INT
+
+action VARCHAR(50) // 'create','update','close','notify'
+
+payload JSONB
+
+created_at TIMESTAMP DEFAULT now()
+
+Prisma models mirror these tables with relations & unique indexes.
+
+3) API Design (Express + TypeScript)
+Public
+
+GET /api/voices?status=active&category=&q=&page=&limit=
+→ List with filters, pagination
+
+GET /api/voices/:slug
+→ Voice detail (sections + visible contacts + recent updates)
+
+GET /api/voices/:id/updates
+→ Paginated updates
+
+GET /api/voices/:id/contacts
+→ Public contacts (visible=true)
+
+Authenticated (user)
+
+POST /api/voices/:id/support { motivation_note? }
+→ Upsert supporter; increments supporters_count idempotently
+
+DELETE /api/voices/:id/support
+→ Withdraw support (optional)
+
+POST /api/voices/:id/gathering/join { status? 'interested'|'confirmed' }
+→ RSVP/confirm
+
+DELETE /api/voices/:id/gathering/join
+→ Withdraw RSVP
+
+GET /api/me/voices
+→ “My Voices” (supported & gatherings joined)
+
+Admin (role: admin/moderator)
+
+POST /api/voices
+
+PATCH /api/voices/:id
+
+DELETE /api/voices/:id // soft close or delete
+
+POST /api/voices/:id/updates {update_title, update_body, notify_supporters?}
+→ Create update + queue notifications
+
+POST /api/voices/:id/contacts (CRUD list)
+
+PUT /api/voices/:id/gathering // toggle & edit all gathering fields
+
+GET /api/voices/:id/supporters?status=&city=&state=&specialization=
+→ Export CSV
+
+GET /api/voices/analytics
+→ Stats (counts, trending, geo, categories)
+
+Notes
+
+Use middleware for auth/role checks.
+
+Validate inputs (zod/yup).
+
+Rate-limit write endpoints (support/join/updates).
+
+4) Workflows
+A) Admin creates a Voice
+
+Fill form (title, slug auto-gen, banner, descriptions, category)
+
+Add related docs/images and authorities/departments
+
+(Optional) toggle Has Gathering + enter date/time/venue + contacts
+
+Publish → status=active
+
+(Optional) Broadcast “New Voice” to all users (BigTos)
+
+B) User supports a Voice
+
+Click “Support this Voice” → (optional note) → record created
+
+Counter animates; WhatsApp share teaser shown
+
+C) Admin posts an Update
+
+Create update → store
+
+If notify_supporters → enqueue WhatsApp/email jobs to all supporters
+
+Update appears atop updates feed
+
+D) Gathering flow
+
+If has_gathering:
+
+Show event card (time, venue, map link, contacts)
+
+User taps Join Gathering → RSVP saved
+
+Reminder automation: T-24h & T-2h via BigTos
+
+After event: Thank-you + post-event update
+
+5) UI/UX
+Homepage
+
+Medical Voices Banner block:
+
+Headline + short line
+
+“Latest Gathering” mini-card (date/city/supporters)
+
+Buttons: [Explore Voices] [Start a Voice]* (if allowed to doctors)
+
+Optionally carousel of featured voices
+
+Voices List /medical-voices
+
+Filters: Category, Status (Active/Closed), Search
+
+Card grid:
+
+Banner
+
+Title + badge (category)
+
+Short summary (2-3 lines)
+
+Supporters count (animated)
+
+[View Voice] CTA
+
+Voice Detail /voices/:slug
+
+Left (main):
+
+Hero banner + title + category tag
+
+Support counter
+
+Primary CTA: [💪 Support this Voice]
+
+Rich description
+
+Related Docs (table with name + open/download)
+
+Image gallery (lightbox)
+
+Updates feed (accordion or cards)
+
+Right (sidebar) sticky:
+
+Share buttons (WhatsApp / X / LinkedIn / Copy link)
+
+Concerned Authority / Department chips (clickable)
+
+Contacts (primary + others)
+
+If has_gathering:
+
+Event card (date/time/map link)
+
+CTA: [✔ Join Gathering] or “✅ You’re attending”
+
+Countdown (“2 days left”)
+
+Target bar (optional): 850 / 1000 attending
+
+Micro-UX
+
+Confetti on Support/Join
+
+Live supporter count (Socket optional; else optimistic UI)
+
+Smooth anchors: “Jump to Updates”, “Jump to Gathering”
+
+Accessibility
+
+Color contrast AA
+
+Keyboard nav
+
+Alt text for images, labels for inputs
+
+Focus states & aria-live for counters
+
+SEO
+
+Server-render meta tags (title/description)
+
+og: and twitter: cards
+
+Canonical URLs
+
+Slugs stable & unique
+
+6) Notifications & Messaging (BigTos)
+
+Templates
+
+New Voice (broadcast, optional)
+
+Support Confirmation (to supporter)
+
+New Update (to supporters)
+
+Gathering Created / Updated (to supporters)
+
+Gathering Reminders: T-24h & T-2h (to RSVPs)
+
+Post-Event Thank You
+
+Dispatch Strategy
+
+Queue (BullMQ / lightweight in-process queue) to avoid spiking API
+
+Batches (e.g., 200 msgs/min) with per-user dedupe
+
+Admin logs: message type, count, success/fail
+
+7) Security, Moderation & Compliance
+
+AuthZ: only admins can create/edit/close voices; contacts visible flag respected.
+
+Input Validation: all endpoints (title, urls, HTML sanitize with DOMPurify on server).
+
+Rate limiting: Support/Join endpoints (IP+user) to block spam/bots.
+
+Audit logs: create/update/delete/notify actions stored in audit_logs.
+
+PII: contact numbers only displayed if visible=true; logs protected in admin.
+
+Content flags: internal flagging system for abuse reports (future).
+
+Backups: nightly DB backups; signed URLs for media.
+
+8) Performance & Scaling
+
+Indexes on (slug), (status,visibility), (category), (voice_id,user_id).
+
+Pagination for lists & updates (cursor or offset).
+
+CDN for images and docs.
+
+Optional Socket channel for live supporter counter.
+
+Caching:
+
+In-memory (Redis optional) for voice detail, counter (with short TTL).
+
+Stale-while-revalidate pattern for home banner block.
+
+9) Admin CRM
+
+Menu
+
+Admin → Medical Voices
+  ├── All Voices
+  ├── Create / Edit
+  ├── Updates & Broadcasts
+  ├── Supporters (export CSV)
+  ├── Gatherings (RSVP list)
+  └── Analytics
+
+
+Analytics Widgets
+
+Total Voices (Active/Closed)
+
+Total Supporters
+
+Top 5 Voices by supporters
+
+Gatherings hosted & total RSVPs
+
+Category split (pie)
+
+Geo breakdown (map heat or city table)
+
+10) API Payload Examples
+
+Create Voice (Admin)
+
+POST /api/voices
+{
+  "title": "End Violence Against Rural Doctors",
+  "short_description": "Safer workplaces for rural postings.",
+  "description": "<p>Detailed story…</p>",
+  "category": "Workplace Safety",
+  "concerned_authority": "Rajasthan Health Dept",
+  "target_department": "NMC",
+  "banner_image": "https://cdn/img.jpg",
+  "related_documents": [{"name":"Petition PDF","url":"https://cdn/petition.pdf"}],
+  "related_images": ["https://cdn/img1.jpg","https://cdn/img2.jpg"],
+  "visibility": "public",
+  "status": "active"
+}
+
+
+Support Voice
+
+POST /api/voices/123/support
+{ "motivation_note": "Faced similar incident in PHC." }
+
+
+Define Gathering (Admin)
+
+PUT /api/voices/123/gathering
+{
+  "has_gathering": true,
+  "gathering_date": "2025-10-22T10:30:00.000Z",
+  "gathering_location": "JLN Hospital Auditorium",
+  "gathering_address": "JLN Marg, Jaipur",
+  "gathering_city": "Jaipur",
+  "gathering_state": "Rajasthan",
+  "gathering_pin": "302004",
+  "gathering_map_link": "https://maps.app.goo.gl/xxxx",
+  "gathering_notes": "Bring ID; peaceful demonstration."
+}
+
+
+Join Gathering
+
+POST /api/voices/123/gathering/join
+{ "status": "confirmed", "remarks": "Bringing 3 colleagues." }
+
+11) DevOps & Config
+
+Env
+
+DATABASE_URL=postgres://...
+JWT_SECRET=...
+BIGTOS_API_KEY=...
+CLOUD_STORAGE_KEY=...
+EMAIL_SMTP=...
+
+
+Background Jobs
+
+Queue worker for notifications (updates/gatherings/reminders).
+
+Cron:
+
+Daily: upcoming gatherings reminder schedule
+
+Cleanup: archive closed voices, regenerate sitemaps
+
+Logging/Observability
+
+Request logs (morgan + pino)
+
+Error tracking (Sentry optional)
+
+Structured logs for notifications
+
+Migrations
+
+Prisma migrations for new tables + indexes
+
+Seed script for sample categories & demo voice
+
+12) Homepage & Navigation
+
+Global nav: Medical Voices
+
+Homepage banner block (feature top active voice with gathering)
+
+Footer links: “Start a Voice” (if allowed), “Community Guidelines”
+
+13) Rollout Plan
+
+MVP: Voices + Support + Admin CRUD + Banner + Sharing
+
+Phase 2: Updates → broadcasts; Contacts; Gatherings + RSVP + reminders
+
+Phase 3: Analytics dashboard; Geo targeting; Socket live counters
+
+Phase 4: Comments/moderation; Polls; Post-event reports
+
+14) UI Kits & Components (React)
+
+<VoicesBanner /> for homepage
+
+<VoicesList /> with filters and pagination
+
+<VoicePage /> (hero, support, description, docs, images, updates)
+
+<GatheringCard /> (date/time/map/contacts/join)
+
+<ShareBar /> (WhatsApp/X/LinkedIn/copy)
+
+Admin:
+
+<VoiceForm />, <ContactsManager />, <DocsManager />, <GatheringForm />, <UpdatesComposer />, <SupportersTable />, <VoicesAnalytics />

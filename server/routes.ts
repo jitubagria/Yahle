@@ -2085,15 +2085,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       let profileCompleteness = 20; // Base for having account
       if (profile) {
-        if (profile.name) profileCompleteness += 20;
-        if (profile.specialty) profileCompleteness += 20;
-        if (profile.experience) profileCompleteness += 20;
-        if (profile.education) profileCompleteness += 20;
+        if (profile.firstName) profileCompleteness += 20;
+        if (profile.pgBranch) profileCompleteness += 20;
+        if (profile.jobSector) profileCompleteness += 20;
+        if (profile.professionaldegree) profileCompleteness += 20;
       }
+
+      // Get detailed enrolled courses with progress
+      const enrolledCoursesData = await db.select({
+        id: enrollments.id,
+        courseId: courses.id,
+        title: courses.title,
+        thumbnailImage: courses.thumbnailImage,
+        progress: enrollments.progress,
+      })
+        .from(enrollments)
+        .innerJoin(courses, eq(enrollments.courseId, courses.id))
+        .where(eq(enrollments.userId, userId))
+        .orderBy(sql`${enrollments.enrolledAt} DESC`);
+
+      // For each enrollment, get module counts and completed counts
+      const enrolledCoursesDetails = await Promise.all(
+        enrolledCoursesData.map(async (enrollment) => {
+          const [moduleCount] = await db.select({ count: sql<number>`count(*)` })
+            .from(courseModules)
+            .where(eq(courseModules.courseId, enrollment.courseId));
+
+          const [completedCount] = await db.select({ count: sql<number>`count(DISTINCT ${courseProgress.moduleId})` })
+            .from(courseProgress)
+            .innerJoin(enrollments, eq(courseProgress.enrollmentId, enrollments.id))
+            .where(and(
+              eq(enrollments.userId, userId),
+              eq(enrollments.courseId, enrollment.courseId),
+              eq(courseProgress.completed, true)
+            ));
+
+          const totalModules = moduleCount?.count || 0;
+          const completedModules = completedCount?.count || 0;
+          const progress = totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
+
+          return {
+            id: enrollment.id,
+            courseId: enrollment.courseId,
+            title: enrollment.title,
+            thumbnailImage: enrollment.thumbnailImage,
+            progress,
+            totalModules,
+            completedModules,
+          };
+        })
+      );
 
       res.json({
         profileCompleteness,
         enrolledCourses: enrolledCourses[0]?.count || 0,
+        enrolledCoursesDetails,
         certificates: (enrolledCourses[0]?.count || 0) + (quizCertificates[0]?.count || 0),
         activeRequests: activeRequests[0]?.count || 0,
         nextMasterclass: nextMasterclass[0]?.masterclasses || null,

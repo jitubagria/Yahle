@@ -286,6 +286,58 @@ export default function UserDashboard() {
           </div>
         </div>
 
+        {/* Enrolled Courses with Progress */}
+        {dashboardData?.enrolledCoursesDetails && dashboardData.enrolledCoursesDetails.length > 0 && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BookOpen className="w-5 h-5" />
+                My Courses
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-2 gap-4">
+                {dashboardData.enrolledCoursesDetails.map((course: any) => (
+                  <Link key={course.id} href={`/dashboard/courses/${course.courseId}`}>
+                    <Card className="hover-elevate cursor-pointer">
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-4">
+                          {course.thumbnailImage ? (
+                            <img 
+                              src={course.thumbnailImage} 
+                              alt={course.title}
+                              className="w-16 h-16 rounded-lg object-cover"
+                            />
+                          ) : (
+                            <div className="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center">
+                              <BookOpen className="w-8 h-8 text-primary" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold mb-1 truncate">{course.title}</h3>
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-xs text-muted-foreground">
+                                {course.completedModules} of {course.totalModules} modules
+                              </span>
+                              {course.progress === 100 && (
+                                <Badge variant="secondary" className="text-xs">
+                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                  Complete
+                                </Badge>
+                              )}
+                            </div>
+                            <Progress value={course.progress} className="h-2" />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Recent Activity */}
         <Card>
           <CardHeader>
