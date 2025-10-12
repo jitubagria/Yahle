@@ -2253,6 +2253,129 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== HOSPITAL-DOCTOR RELATIONSHIP ROUTES =====
+  
+  // Get doctors working at a specific hospital
+  app.get("/api/hospitals/:id/doctors", async (req, res) => {
+    try {
+      const hospitalId = parseInt(req.params.id);
+      
+      // Validate hospital ID
+      if (isNaN(hospitalId)) {
+        return res.status(400).json({ error: "Invalid hospital ID" });
+      }
+      
+      // Get hospital details
+      const hospital = await db.select().from(hospitals).where(eq(hospitals.id, hospitalId)).limit(1);
+      
+      if (hospital.length === 0) {
+        return res.status(404).json({ error: "Hospital not found" });
+      }
+      
+      const hospitalName = hospital[0].name;
+      
+      // Find approved doctors whose job fields exactly match this hospital (case-insensitive)
+      // Check both jobPrivateHospital and jobAddedPrivateHospital fields
+      const doctorsAtHospital = await db
+        .select({
+          id: doctorProfiles.id,
+          userId: doctorProfiles.userId,
+          firstName: doctorProfiles.firstName,
+          middleName: doctorProfiles.middleName,
+          lastName: doctorProfiles.lastName,
+          email: doctorProfiles.email,
+          profilePic: doctorProfiles.profilePic,
+          professionaldegree: doctorProfiles.professionaldegree,
+          jobPrivateHospital: doctorProfiles.jobPrivateHospital,
+          jobAddedPrivateHospital: doctorProfiles.jobAddedPrivateHospital,
+          jobSector: doctorProfiles.jobSector,
+          jobCountry: doctorProfiles.jobCountry,
+          jobState: doctorProfiles.jobState,
+          jobCity: doctorProfiles.jobCity,
+          approvalStatus: doctorProfiles.approvalStatus,
+          userPhone: users.phone,
+        })
+        .from(doctorProfiles)
+        .leftJoin(users, eq(doctorProfiles.userId, users.id))
+        .where(
+          and(
+            eq(doctorProfiles.approvalStatus, 'approved'),
+            or(
+              sql`LOWER(${doctorProfiles.jobPrivateHospital}) = LOWER(${hospitalName})`,
+              sql`LOWER(${doctorProfiles.jobAddedPrivateHospital}) = LOWER(${hospitalName})`
+            )
+          )
+        );
+      
+      res.json({
+        hospital: hospital[0],
+        doctors: doctorsAtHospital,
+        count: doctorsAtHospital.length,
+      });
+    } catch (error) {
+      console.error("Get hospital doctors error:", error);
+      res.status(500).json({ error: "Failed to fetch hospital doctors" });
+    }
+  });
+  
+  // Get hospitals where a doctor works (from job fields)
+  app.get("/api/doctors/:id/hospitals", async (req, res) => {
+    try {
+      const doctorId = parseInt(req.params.id);
+      
+      // Validate doctor ID
+      if (isNaN(doctorId)) {
+        return res.status(400).json({ error: "Invalid doctor ID" });
+      }
+      
+      // Get doctor profile
+      const doctor = await db.select().from(doctorProfiles).where(eq(doctorProfiles.id, doctorId)).limit(1);
+      
+      if (doctor.length === 0) {
+        return res.status(404).json({ error: "Doctor not found" });
+      }
+      
+      const profile = doctor[0];
+      const hospitalNames: string[] = [];
+      
+      // Collect hospital names from job fields
+      if (profile.jobPrivateHospital) {
+        hospitalNames.push(profile.jobPrivateHospital);
+      }
+      if (profile.jobAddedPrivateHospital) {
+        hospitalNames.push(profile.jobAddedPrivateHospital);
+      }
+      
+      // If no hospital names, return empty array
+      if (hospitalNames.length === 0) {
+        return res.json({
+          doctor: profile,
+          hospitals: [],
+          count: 0,
+        });
+      }
+      
+      // Find matching hospitals by exact name (case-insensitive)
+      const matchedHospitals = await db
+        .select()
+        .from(hospitals)
+        .where(
+          or(
+            ...hospitalNames.map(name => sql`LOWER(${hospitals.name}) = LOWER(${name})`)
+          )
+        );
+      
+      res.json({
+        doctor: profile,
+        hospitals: matchedHospitals,
+        count: matchedHospitals.length,
+      });
+    } catch (error) {
+      console.error("Get doctor hospitals error:", error);
+      res.status(500).json({ error: "Failed to fetch doctor hospitals" });
+    }
+  });
+
   // ===== SETTINGS ROUTES =====
   
   // Get all settings (grouped by category)
