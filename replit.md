@@ -161,6 +161,32 @@ All notifications are logged in `bigtos_messages` table with delivery status.
 
 ## Recent Changes (Latest)
 
+### Enhanced Certificate Generation System (In Progress - October 12, 2025)
+- ✅ **Database Schema Extended**:
+  - Created `entity_templates` table for storing certificate templates (supports courses, quizzes, masterclasses)
+  - Enhanced `certificates` table with entity_type, rank, score, background_image, output_url, sent_status fields
+  - Unique constraint on (entity_type, entity_id) for templates
+- ✅ **Certificate Generation Service** (`server/services/certificates.ts`):
+  - Image manipulation using Jimp library
+  - Dynamic text overlay with configurable positions (JSON-based)
+  - Support for name, title, date, score, rank fields
+  - Auto-generation on completion with WhatsApp delivery hook (BigTos API ready)
+  - Base64 output URL generation (upgradeable to cloud storage)
+- 🚧 **Admin Template Management** (Pending):
+  - API routes for template upload and configuration
+  - UI for template positioning and preview
+  - Integration with object storage for template images
+- 🚧 **Automatic Triggering** (Pending):
+  - Course completion → certificate generation
+  - Quiz completion → certificate with score/rank
+  - Masterclass attendance → certificate generation
+- 📋 **Integration Points**:
+  - WhatsApp delivery via BigTos API (placeholder implemented)
+  - Object storage for certificate images (to be integrated)
+  - Admin dashboard for certificate management and resending
+
+## Recent Changes (Previous)
+
 ### Dashboard System & CRM Foundation (Completed - October 11, 2025)
 - ✅ **User Dashboard** (`/dashboard`) with personalized overview widgets:
   - Profile completeness tracker

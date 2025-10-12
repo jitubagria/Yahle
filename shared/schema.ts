@@ -15,6 +15,7 @@ export const quizTypeEnum = pgEnum("quiz_type", ["free", "paid", "live", "practi
 export const quizSessionStatusEnum = pgEnum("quiz_session_status", ["waiting", "running", "finished"]);
 export const contentTypeEnum = pgEnum("content_type", ["video", "pdf", "text", "quiz"]);
 export const paymentStatusEnum = pgEnum("payment_status", ["free", "paid", "refunded"]);
+export const entityTypeEnum = pgEnum("entity_type", ["course", "quiz", "masterclass"]);
 
 // Users table
 export const users = pgTable("users", {
@@ -289,15 +290,34 @@ export const quizLeaderboard = pgTable("quiz_leaderboard", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Entity Templates - Certificate templates for courses, quizzes, masterclasses
+export const entityTemplates = pgTable("entity_templates", {
+  id: serial("id").primaryKey(),
+  entityType: entityTypeEnum("entity_type").notNull(),
+  entityId: integer("entity_id").notNull(),
+  backgroundImage: text("background_image").notNull(),
+  font: varchar("font", { length: 100 }).default("Arial"),
+  textColor: varchar("text_color", { length: 20 }).default("#000000"),
+  textPositions: text("text_positions").notNull(), // JSON string
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  uniqueEntityTemplate: sql`UNIQUE (entity_type, entity_id)`,
+}));
+
 // Certificates table - All certificates (quiz, course, etc.)
 export const certificates = pgTable("certificates", {
   id: serial("id").primaryKey(),
+  entityType: entityTypeEnum("entity_type").notNull(),
+  entityId: integer("entity_id").notNull(),
   userId: integer("user_id").references(() => users.id).notNull(),
-  quizId: integer("quiz_id").references(() => quizzes.id),
-  courseId: integer("course_id").references(() => courses.id),
-  type: varchar("type", { length: 50 }), // 'quiz', 'course', etc.
-  certificateUrl: text("certificate_url"),
-  sent: boolean("sent").default(false),
+  name: varchar("name", { length: 150 }).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  rank: varchar("rank", { length: 50 }),
+  score: varchar("score", { length: 50 }),
+  backgroundImage: text("background_image"),
+  outputUrl: text("output_url"),
+  sentStatus: boolean("sent_status").default(false),
   sentAt: timestamp("sent_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -465,18 +485,25 @@ export const quizLeaderboardRelations = relations(quizLeaderboard, ({ one }) => 
   }),
 }));
 
+export const entityTemplatesRelations = relations(entityTemplates, ({ one }) => ({
+  course: one(courses, {
+    fields: [entityTemplates.entityId],
+    references: [courses.id],
+  }),
+  quiz: one(quizzes, {
+    fields: [entityTemplates.entityId],
+    references: [quizzes.id],
+  }),
+  masterclass: one(masterclasses, {
+    fields: [entityTemplates.entityId],
+    references: [masterclasses.id],
+  }),
+}));
+
 export const certificatesRelations = relations(certificates, ({ one }) => ({
   user: one(users, {
     fields: [certificates.userId],
     references: [users.id],
-  }),
-  quiz: one(quizzes, {
-    fields: [certificates.quizId],
-    references: [quizzes.id],
-  }),
-  course: one(courses, {
-    fields: [certificates.courseId],
-    references: [courses.id],
   }),
 }));
 
@@ -592,6 +619,12 @@ export const insertQuizLeaderboardSchema = createInsertSchema(quizLeaderboard).o
   createdAt: true,
 });
 
+export const insertEntityTemplateSchema = createInsertSchema(entityTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertCertificateSchema = createInsertSchema(certificates).omit({
   id: true,
   createdAt: true,
@@ -702,6 +735,9 @@ export type InsertCourseCertificate = z.infer<typeof insertCourseCertificateSche
 
 export type Masterclass = typeof masterclasses.$inferSelect;
 export type InsertMasterclass = z.infer<typeof insertMasterclassSchema>;
+
+export type EntityTemplate = typeof entityTemplates.$inferSelect;
+export type InsertEntityTemplate = z.infer<typeof insertEntityTemplateSchema>;
 
 export type Quiz = typeof quizzes.$inferSelect;
 export type InsertQuiz = z.infer<typeof insertQuizSchema>;

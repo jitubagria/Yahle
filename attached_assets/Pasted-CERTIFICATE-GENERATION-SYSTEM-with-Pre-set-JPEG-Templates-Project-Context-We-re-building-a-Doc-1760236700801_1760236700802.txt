@@ -1,0 +1,206 @@
+CERTIFICATE GENERATION SYSTEM (with Pre-set JPEG Templates)
+🔧 Project Context
+
+We’re building a DocsUniverse web app (React + Node.js + PostgreSQL) that hosts Courses, Quizzes, and Masterclasses.
+Each of these can generate personalized completion certificates automatically.
+
+🎯 Goal
+
+Implement a unified certificate generation module that:
+
+Lets admin upload a preset JPEG/JPG certificate background for each Course/Quiz/Masterclass.
+
+When a user completes it, dynamically writes their details (name, title, date, score/rank) on top of that image.
+
+Generates a final image or PDF on the fly.
+
+Uploads it to storage (e.g. Cloudinary/Supabase).
+
+Sends it automatically to the user via Bigtos WhatsApp API.
+
+Logs every certificate issued in admin dashboard with resend/view options.
+
+⚙️ Implementation Steps
+🧱 1️⃣ Database Schema (PostgreSQL)
+certificates
+Column	Type	Description
+id	SERIAL PRIMARY KEY	
+entity_type	ENUM('course','quiz','masterclass')	Source type
+entity_id	INT	Course/Quiz/Masterclass ID
+user_id	UUID REFERENCES users(id)	Recipient
+name	VARCHAR(150)	User’s full name
+title	VARCHAR(255)	Certificate title
+rank	VARCHAR(50)	Optional (for quizzes)
+score	VARCHAR(50)	Optional
+background_image	TEXT	URL of preset JPEG
+output_url	TEXT	Generated certificate URL
+sent_status	BOOLEAN DEFAULT FALSE	
+sent_at	TIMESTAMP	
+created_at	TIMESTAMP DEFAULT now()	
+entity_templates
+Column	Type	Description
+id	SERIAL PRIMARY KEY	
+entity_type	ENUM('course','quiz','masterclass')	Type
+entity_id	INT	Linked ID
+background_image	TEXT	Uploaded JPEG template URL
+font	VARCHAR(100)	e.g. “Poppins-Bold.ttf”
+text_color	VARCHAR(20)	e.g. “#000000”
+text_positions	JSONB	Key-value map of coordinates for each field (name, date, rank, etc.)
+
+Example JSON:
+
+{
+  "name": { "x": 600, "y": 420, "size": 36 },
+  "title": { "x": 600, "y": 500, "size": 28 },
+  "date": { "x": 600, "y": 580, "size": 24 },
+  "rank": { "x": 950, "y": 420, "size": 26 }
+}
+
+🧰 2️⃣ Admin Dashboard (React + Node)
+Admin Options
+
+When creating or editing any entity (Course / Quiz / Masterclass):
+
+Upload Certificate Template Image (JPEG/JPG)
+
+Store to Cloudinary / local /uploads/templates/
+
+Set Font and Text Color
+
+Set Text Positions (optional JSON editor / visual draggable coordinates)
+
+Preview Certificate Layout
+
+Backend:
+POST /api/templates/upload
+Stores record in entity_templates.
+
+🧮 3️⃣ Certificate Generation Logic (Node.js)
+
+When a user completes:
+
+a course (100% progress)
+
+a quiz (status = completed)
+
+a masterclass (attended = true)
+
+Trigger:
+
+await generateCertificate({
+  userId,
+  entityId,
+  entityType,
+  dynamicData: {
+    name: user.name,
+    title: quiz.title,
+    date: new Date().toLocaleDateString(),
+    score: "85%",
+    rank: "3rd"
+  }
+});
+
+Backend Logic (services/certificates.ts)
+
+Fetch template from entity_templates
+
+Load JPEG using Jimp or Sharp
+
+Overlay dynamic text at configured coordinates
+
+Export as .jpg or .pdf
+
+Upload to Cloudinary/Supabase
+
+Store in certificates table
+
+Send via BigTos API
+
+🧠 4️⃣ Certificate Generation Example Code (Node.js)
+import Jimp from 'jimp';
+import { sendWhatsAppFile } from '../services/bigtos.js';
+import { prisma } from '../lib/prisma.js';
+
+export async function generateCertificate({ userId, entityId, entityType, dynamicData }) {
+  const template = await prisma.entity_templates.findFirst({
+    where: { entity_type: entityType, entity_id: entityId }
+  });
+
+  if (!template) throw new Error('No certificate template found.');
+
+  const image = await Jimp.read(template.background_image);
+  const font = await Jimp.loadFont(Jimp.FONT_SANS_32_BLACK);
+
+  const positions = template.text_positions;
+
+  image.print(font, positions.name.x, positions.name.y, dynamicData.name);
+  image.print(font, positions.title.x, positions.title.y, dynamicData.title);
+  image.print(font, positions.date.x, positions.date.y, dynamicData.date);
+
+  if (dynamicData.rank)
+    image.print(font, positions.rank.x, positions.rank.y, `Rank: ${dynamicData.rank}`);
+
+  const filename = `certificate_${entityType}_${userId}_${Date.now()}.jpg`;
+  await image.writeAsync(`./uploads/certificates/${filename}`);
+
+  const fileUrl = await uploadToCloud(filename);
+
+  const cert = await prisma.certificates.create({
+    data: {
+      entity_type: entityType,
+      entity_id: entityId,
+      user_id: userId,
+      name: dynamicData.name,
+      title: dynamicData.title,
+      background_image: template.background_image,
+      output_url: fileUrl
+    }
+  });
+
+  await sendWhatsAppFile(userId, fileUrl, `🎓 Congrats ${dynamicData.name}! Here’s your certificate for ${dynamicData.title}.`);
+  await prisma.certificates.update({
+    where: { id: cert.id },
+    data: { sent_status: true, sent_at: new Date() }
+  });
+
+  return cert;
+}
+
+💬 5️⃣ WhatsApp Delivery (BigTos API)
+
+Endpoint:
+https://www.cp.bigtos.com/api/v1/sendmessage
+
+Payload Example:
+
+{
+  "key": "BIGTOS_API_KEY",
+  "mobileno": "919999999999",
+  "msg": "🎓 Congrats Dr. Rajesh Kumar! Here’s your course certificate.",
+  "File": "https://cdn.docsuniverse.com/certificates/course_123_user_321.jpg",
+  "type": "File"
+}
+
+📊 6️⃣ Admin Dashboard Log View
+
+Menu:
+Dashboard → Certificates
+
+Columns:
+
+User	Entity	Type	Date	File	Sent	Action
+Dr. Rajesh Kumar	BCBR Course	Course	12 Oct 2025	[View]	✅ Sent	🔁 Resend
+
+Filters: by Date, Type, Entity, Sent/Unsent
+Export: CSV or PDF
+
+🧩 7️⃣ Optional Enhancements
+
+Add QR code on certificates linking back to verification endpoint:
+/verify/certificate/:id
+
+Add admin “Preview Template” mode
+
+Add watermark for demo/free versions
+
+Support multiple fonts per field
