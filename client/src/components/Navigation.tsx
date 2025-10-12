@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
-import { Stethoscope, Menu, X, User, LogOut } from 'lucide-react';
+import { Stethoscope, Menu, X, User, LogOut, LayoutDashboard } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { getAuthenticatedUser, logout } from '@/lib/auth';
@@ -81,19 +81,17 @@ export default function Navigation() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem asChild>
+                    <Link href={user.role === 'admin' ? '/admin' : '/dashboard'}>
+                      <LayoutDashboard className="w-4 h-4 mr-2" />
+                      Dashboard
+                    </Link>
+                  </DropdownMenuItem>
                   {user.role === 'doctor' && (
                     <DropdownMenuItem asChild>
                       <Link href={`/doctor/${user.id}/edit`}>
                         <User className="w-4 h-4 mr-2" />
                         Edit Profile
-                      </Link>
-                    </DropdownMenuItem>
-                  )}
-                  {user.role === 'admin' && (
-                    <DropdownMenuItem asChild>
-                      <Link href="/admin">
-                        <User className="w-4 h-4 mr-2" />
-                        Admin Dashboard
                       </Link>
                     </DropdownMenuItem>
                   )}
@@ -140,21 +138,20 @@ export default function Navigation() {
                   </div>
                 </Link>
               ))}
-              <div className="flex gap-2 pt-4 border-t">
+              <div className="flex flex-col gap-2 pt-4 border-t">
                 {user ? (
                   <>
+                    <Link href={user.role === 'admin' ? '/admin' : '/dashboard'}>
+                      <Button variant="outline" className="w-full" onClick={() => setMobileMenuOpen(false)}>
+                        <LayoutDashboard className="w-4 h-4 mr-2" />
+                        Dashboard
+                      </Button>
+                    </Link>
                     {user.role === 'doctor' && (
-                      <Link href={`/doctor/${user.id}/edit`} className="flex-1">
+                      <Link href={`/doctor/${user.id}/edit`}>
                         <Button variant="outline" className="w-full" onClick={() => setMobileMenuOpen(false)}>
                           <User className="w-4 h-4 mr-2" />
                           Edit Profile
-                        </Button>
-                      </Link>
-                    )}
-                    {user.role === 'admin' && (
-                      <Link href="/admin" className="flex-1">
-                        <Button variant="outline" className="w-full" onClick={() => setMobileMenuOpen(false)}>
-                          Admin Dashboard
                         </Button>
                       </Link>
                     )}
