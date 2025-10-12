@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import type { IncomingMessage } from "http";
 import { db } from "./db";
-import { users, doctorProfiles, courses, quizzes, quizQuestions, quizSessions, quizResponses, quizLeaderboard, certificates, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, enrollments, courseModules, courseProgress, courseCertificates, insertUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertQuizSessionSchema, insertQuizResponseSchema, insertQuizLeaderboardSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema, insertCourseModuleSchema, insertCourseProgressSchema, insertCourseCertificateSchema } from "@shared/schema";
+import { users, doctorProfiles, courses, quizzes, quizQuestions, quizSessions, quizResponses, quizLeaderboard, certificates, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, enrollments, courseModules, courseProgress, courseCertificates, entityTemplates, insertUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertQuizSessionSchema, insertQuizResponseSchema, insertQuizLeaderboardSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema, insertCourseModuleSchema, insertCourseProgressSchema, insertCourseCertificateSchema, insertEntityTemplateSchema } from "@shared/schema";
 import { eq, like, or, and, sql, inArray } from "drizzle-orm";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { bigtosService } from "./bigtos";
@@ -509,6 +509,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error("Reorder modules error:", error);
       res.status(500).json({ error: "Failed to reorder modules" });
+    }
+  });
+
+  // ===== CERTIFICATE TEMPLATE ROUTES =====
+  // Get all templates (admin only)
+  app.get("/api/admin/templates", requireAdmin, async (req, res) => {
+    try {
+      const templates = await db.select()
+        .from(entityTemplates)
+        .orderBy(entityTemplates.createdAt);
+      res.json(templates);
+    } catch (error) {
+      console.error("Get templates error:", error);
+      res.status(500).json({ error: "Failed to fetch templates" });
+    }
+  });
+
+  // Get template by entity
+  app.get("/api/admin/templates/:entityType/:entityId", requireAdmin, async (req, res) => {
+    try {
+      const { entityType, entityId } = req.params;
+      
+      if (!['course', 'quiz', 'masterclass'].includes(entityType)) {
+        return res.status(400).json({ error: "Invalid entity type" });
+      }
+
+      const [template] = await db.select()
+        .from(entityTemplates)
+        .where(and(
+          eq(entityTemplates.entityType, entityType as any),
+          eq(entityTemplates.entityId, parseInt(entityId))
+        ))
+        .limit(1);
+
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      res.json(template);
+    } catch (error) {
+      console.error("Get template error:", error);
+      res.status(500).json({ error: "Failed to fetch template" });
+    }
+  });
+
+  // Create or update template (admin only)
+  app.post("/api/admin/templates", requireAdmin, async (req, res) => {
+    try {
+      const validated = insertEntityTemplateSchema.parse(req.body);
+      
+      // Check if template exists for this entity
+      const [existing] = await db.select()
+        .from(entityTemplates)
+        .where(and(
+          eq(entityTemplates.entityType, validated.entityType),
+          eq(entityTemplates.entityId, validated.entityId)
+        ))
+        .limit(1);
+
+      if (existing) {
+        // Update existing template
+        const [updated] = await db.update(entityTemplates)
+          .set({
+            ...validated,
+            updatedAt: new Date()
+          })
+          .where(eq(entityTemplates.id, existing.id))
+          .returning();
+        
+        return res.json(updated);
+      } else {
+        // Create new template
+        const [newTemplate] = await db.insert(entityTemplates)
+          .values(validated)
+          .returning();
+        
+        return res.json(newTemplate);
+      }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation failed", details: error.errors });
+      }
+      console.error("Create/Update template error:", error);
+      res.status(500).json({ error: "Failed to save template" });
+    }
+  });
+
+  // Delete template (admin only)
+  app.delete("/api/admin/templates/:id", requireAdmin, async (req, res) => {
+    try {
+      const templateId = parseInt(req.params.id);
+      if (isNaN(templateId)) {
+        return res.status(400).json({ error: "Invalid template ID" });
+      }
+
+      const [deleted] = await db.delete(entityTemplates)
+        .where(eq(entityTemplates.id, templateId))
+        .returning();
+
+      if (!deleted) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      res.json({ success: true, deletedTemplate: deleted });
+    } catch (error) {
+      console.error("Delete template error:", error);
+      res.status(500).json({ error: "Failed to delete template" });
     }
   });
 
