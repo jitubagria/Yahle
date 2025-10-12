@@ -52,8 +52,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .where(eq(users.id, existingUser.id));
       } else {
         // Create new user
-        // In development mode, phone 9999999999 gets admin role for testing
-        const role = (process.env.NODE_ENV === 'development' && phone === '9999999999') ? 'admin' : 'doctor';
+        // In development mode, specific phones get admin role for testing
+        const adminPhones = ['9999999999', '9799720730'];
+        const role = (process.env.NODE_ENV === 'development' && adminPhones.includes(phone)) ? 'admin' : 'doctor';
         await db.insert(users).values({
           phone,
           otpCode,
