@@ -1,9 +1,9 @@
-import { useParams, useLocation } from 'wouter';
+import { useParams, useLocation, Link } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { BookOpen, Clock, Users, Star, CheckCircle, PlayCircle, FileText, Video, FileQuestion, Lock } from 'lucide-react';
+import { BookOpen, Clock, Users, Star, CheckCircle, PlayCircle, FileText, Video, FileQuestion, Lock, ArrowLeft } from 'lucide-react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { getAuthenticatedUser } from '@/lib/auth';
@@ -105,6 +105,12 @@ export default function CourseDetail() {
       {/* Hero Section */}
       <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-background border-b">
         <div className="container mx-auto px-4 py-12">
+          <Link href="/courses">
+            <Button variant="ghost" size="sm" className="mb-4" data-testid="button-back">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Courses
+            </Button>
+          </Link>
           <div className="grid lg:grid-cols-2 gap-8 items-center">
             <div>
               <div className="flex items-center gap-2 mb-4">

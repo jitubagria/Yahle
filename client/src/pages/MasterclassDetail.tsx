@@ -1,9 +1,9 @@
-import { useParams } from 'wouter';
+import { useParams, Link } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, MapPin, Users, Check, User } from 'lucide-react';
+import { Calendar, Clock, MapPin, Users, Check, User, ArrowLeft } from 'lucide-react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { getAuthenticatedUser } from '@/lib/auth';
@@ -87,6 +87,12 @@ export default function MasterclassDetail() {
       <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-background border-b">
         <div className="container mx-auto px-4 py-12">
           <div className="max-w-4xl">
+            <Link href="/masterclasses">
+              <Button variant="ghost" size="sm" className="mb-4" data-testid="button-back">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Masterclasses
+              </Button>
+            </Link>
             <Badge className="mb-4">Registration Open</Badge>
             <h1 className="text-4xl font-bold mb-4" data-testid="text-masterclass-title">
               {masterclass.title}

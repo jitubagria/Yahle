@@ -13,10 +13,28 @@ export default function DoctorDirectory() {
   const [searchTerm, setSearchTerm] = useState('');
   const [location, setLocation] = useState('');
   const [specialty, setSpecialty] = useState('');
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState('');
+  const [appliedLocation, setAppliedLocation] = useState('');
+  const [appliedSpecialty, setAppliedSpecialty] = useState('');
 
   const { data: doctors, isLoading } = useQuery({
-    queryKey: ['/api/doctors', searchTerm, location, specialty],
+    queryKey: ['/api/doctors', appliedSearchTerm, appliedLocation, appliedSpecialty],
   });
+
+  const handleSearch = () => {
+    setAppliedSearchTerm(searchTerm);
+    setAppliedLocation(location);
+    setAppliedSpecialty(specialty);
+  };
+
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setLocation('');
+    setSpecialty('');
+    setAppliedSearchTerm('');
+    setAppliedLocation('');
+    setAppliedSpecialty('');
+  };
 
   const specialties = [
     'All Specialties',
@@ -36,7 +54,7 @@ export default function DoctorDirectory() {
         <div className="container mx-auto px-4 py-8">
           <h1 className="text-4xl font-bold mb-6">Doctor Directory</h1>
           
-          <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex flex-col md:flex-row gap-4 max-w-6xl">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
               <Input
@@ -44,6 +62,7 @@ export default function DoctorDirectory() {
                 className="pl-10"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 data-testid="input-search-doctors"
               />
             </div>
@@ -55,6 +74,7 @@ export default function DoctorDirectory() {
                 className="pl-10"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 data-testid="input-location"
               />
             </div>
@@ -75,9 +95,17 @@ export default function DoctorDirectory() {
               </SelectContent>
             </Select>
 
-            <Button variant="outline" size="icon" data-testid="button-filters">
-              <Filter className="w-5 h-5" />
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={handleSearch} data-testid="button-search-doctors">
+                <Search className="w-4 h-4 mr-2" />
+                Search
+              </Button>
+              {(appliedSearchTerm || appliedLocation || appliedSpecialty) && (
+                <Button variant="outline" onClick={handleClearFilters} data-testid="button-clear-filters">
+                  Clear
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>

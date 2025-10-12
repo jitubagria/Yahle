@@ -1,9 +1,9 @@
-import { useParams } from 'wouter';
+import { useParams, Link } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Briefcase, MapPin, DollarSign, Clock, Building, Users } from 'lucide-react';
+import { Briefcase, MapPin, DollarSign, Clock, Building, Users, ArrowLeft } from 'lucide-react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { getAuthenticatedUser } from '@/lib/auth';
@@ -78,6 +78,12 @@ export default function JobDetail() {
       <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-background border-b">
         <div className="container mx-auto px-4 py-12">
           <div className="max-w-4xl">
+            <Link href="/jobs">
+              <Button variant="ghost" size="sm" className="mb-4" data-testid="button-back">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Jobs
+              </Button>
+            </Link>
             <div className="flex items-center gap-2 mb-4">
               <Badge>{job.type || 'Full-time'}</Badge>
               {job.location && (

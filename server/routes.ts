@@ -4,7 +4,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import type { IncomingMessage } from "http";
 import { db } from "./db";
 import { users, doctorProfiles, courses, quizzes, quizQuestions, quizSessions, quizResponses, quizLeaderboard, certificates, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, enrollments, courseModules, courseProgress, courseCertificates, entityTemplates, insertUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertQuizSessionSchema, insertQuizResponseSchema, insertQuizLeaderboardSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema, insertCourseModuleSchema, insertCourseProgressSchema, insertCourseCertificateSchema, insertEntityTemplateSchema } from "@shared/schema";
-import { eq, like, or, and, sql, inArray } from "drizzle-orm";
+import { eq, like, or, and, sql, inArray, desc } from "drizzle-orm";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { bigtosService } from "./bigtos";
 import { requireAuth, requireAdmin, getAuthenticatedUser } from "./auth";
@@ -1750,6 +1750,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("AI clinical notes error:", error);
       res.status(400).json({ error: "Failed to generate clinical notes" });
+    }
+  });
+
+  // Get all AI tool requests (admin only)
+  app.get("/api/admin/ai-tool-requests", requireAdmin, async (req, res) => {
+    try {
+      const requests = await db.select()
+        .from(aiToolRequests)
+        .orderBy(desc(aiToolRequests.createdAt))
+        .limit(100);
+      
+      res.json(requests);
+    } catch (error) {
+      console.error("Get AI tool requests error:", error);
+      res.status(500).json({ error: "Failed to fetch AI tool requests" });
     }
   });
 

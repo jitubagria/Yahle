@@ -45,6 +45,9 @@ export default function Jobs() {
   const [searchTerm, setSearchTerm] = useState('');
   const [location, setLocation] = useState('');
   const [specialty, setSpecialty] = useState('');
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState('');
+  const [appliedLocation, setAppliedLocation] = useState('');
+  const [appliedSpecialty, setAppliedSpecialty] = useState('');
   const [showPostJobDialog, setShowPostJobDialog] = useState(false);
   const { toast } = useToast();
   const user = getAuthenticatedUser();
@@ -66,8 +69,23 @@ export default function Jobs() {
   });
 
   const { data: jobs, isLoading } = useQuery({
-    queryKey: ['/api/jobs', searchTerm, location, specialty],
+    queryKey: ['/api/jobs', appliedSearchTerm, appliedLocation, appliedSpecialty],
   });
+
+  const handleSearch = () => {
+    setAppliedSearchTerm(searchTerm);
+    setAppliedLocation(location);
+    setAppliedSpecialty(specialty);
+  };
+
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setLocation('');
+    setSpecialty('');
+    setAppliedSearchTerm('');
+    setAppliedLocation('');
+    setAppliedSpecialty('');
+  };
 
   const postJobMutation = useMutation({
     mutationFn: async (data: JobPostFormData) => {
@@ -125,7 +143,7 @@ export default function Jobs() {
             )}
           </div>
           
-          <div className="flex flex-col md:flex-row gap-4 max-w-4xl">
+          <div className="flex flex-col md:flex-row gap-4 max-w-6xl">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
               <Input
@@ -133,6 +151,7 @@ export default function Jobs() {
                 className="pl-10"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 data-testid="input-search-jobs"
               />
             </div>
@@ -144,6 +163,7 @@ export default function Jobs() {
                 className="pl-10"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 data-testid="input-location"
               />
             </div>
@@ -160,6 +180,18 @@ export default function Jobs() {
                 <SelectItem value="orthopedics">Orthopedics</SelectItem>
               </SelectContent>
             </Select>
+
+            <div className="flex gap-2">
+              <Button onClick={handleSearch} data-testid="button-search-jobs">
+                <Search className="w-4 h-4 mr-2" />
+                Search
+              </Button>
+              {(appliedSearchTerm || appliedLocation || appliedSpecialty) && (
+                <Button variant="outline" onClick={handleClearFilters} data-testid="button-clear-filters">
+                  Clear
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>
