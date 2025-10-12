@@ -32,12 +32,13 @@ The backend uses **Node.js** with **Express.js** and **TypeScript** for a REST A
 - **User Management**: Role-based access control (RBAC) with distinct roles and protected routes.
 - **Course & Module Management**: Full CRUD operations for courses and modules, including content type indicators, ordering, and preview options.
 - **Live Quiz System**: Advanced real-time quiz engine with WebSocket synchronization. Features include:
+  - **Auto-Start Scheduler**: Background scheduler (runs every 30 seconds) automatically starts quizzes based on their scheduled start time without admin intervention. Includes robust retry logic with session cleanup and status reversion on failures.
   - **Synchronized Quiz Phases**: All participants see questions at exactly the same time via WebSocket events
   - **Question Preloading**: Questions are preloaded in the background (during countdown and leaderboard phases) to eliminate network latency
   - **Timed Orchestration**: Server-driven 10-second countdown → question display (10s default) → auto-timeout → leaderboard (7s) → next question loop
   - **Real-time Leaderboards**: Ranks calculated and broadcast after each question with speed bonuses for faster correct answers
   - **Zero-Latency UX**: Questions load instantly regardless of network speed through background preloading strategy
-  - **WebSocket Events**: `quiz:countdown`, `quiz:preload`, `quiz:question`, `quiz:submit-answer`, `quiz:timeout`, `quiz:leaderboard`, `quiz:end`
+  - **WebSocket Events**: `quiz:countdown`, `quiz:preload`, `quiz:question`, `quiz:submit-answer`, `quiz:timeout`, `quiz:leaderboard`, `quiz:end`, `quiz:auto-start`
   - **Competitive Scoring**: Base score + speed bonus system rewards both accuracy and response time
 - **Certificate & Notification System**: Dynamic certificate generation using Jimp with customizable templates, automatic WhatsApp delivery, and triggers for course completion, quiz completion, and masterclass bookings.
 - **Admin Dashboards**: Comprehensive admin panels for managing doctors, hospitals, courses, quizzes, jobs, AI tools, research services, users, messaging, payments, settings, and certificates. All 12 admin management pages implemented with full CRUD interfaces, protected by `requireAdmin` middleware.
