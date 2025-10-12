@@ -54,14 +54,20 @@ The backend uses **Node.js** with **Express.js** and **TypeScript** for a REST A
   - **Update Broadcasts**: Admins can post updates with automatic WhatsApp notifications to all supporters
   - **Admin Management**: Full CRUD interface for creating, editing, and closing voices with analytics dashboard
   - **Categories**: Policy Reform, Workplace Safety, Medical Education, Healthcare Ethics, Patient Rights, Professional Welfare, Research & Innovation, Public Health
-- **Automate NPA (Non-Practicing Allowance)**: AI-powered automation tool for monthly NPA certificate generation and delivery. Features include:
+- **Automate NPA (Non-Practicing Allowance)**: Fully automated monthly NPA certificate generation and delivery system. Features include:
   - **Template Management**: Admin dashboard for creating and managing HTML certificate templates with placeholder system ({{name}}, {{designation}}, {{regno}}, {{month}}, {{year}})
-  - **Doctor Opt-In System**: User-facing page for doctors to opt-in with configurable delivery preferences (email, WhatsApp, preferred monthly day)
-  - **Automation Logging**: Comprehensive tracking of certificate generation history with status monitoring (pending, sent, error)
-  - **Admin Dashboard**: Two admin pages - template management (/admin/npa/templates) and automation logs (/admin/npa/logs)
-  - **Database Schema**: Three tables (npa_templates, npa_opt_ins with unique userId constraint, npa_automation)
-  - **Integration**: Listed in AI Tools section with dedicated routes and navigation
-  - **Note**: PDF generation, scheduler, and delivery mechanism pending implementation
+  - **Doctor Opt-In System**: User-facing page for doctors to opt-in with configurable delivery preferences (whatsapp, email, both) and preferred monthly delivery day (1-28)
+  - **PDF Generation**: Automated PDF creation from HTML templates using html-pdf-node library with placeholder replacement
+  - **Cloud Storage**: Automatic upload of generated PDFs to Google Cloud Storage in public directory
+  - **WhatsApp Delivery**: Integration with BigTos API for automated certificate delivery via WhatsApp
+  - **Daily Scheduler**: Cron job running at 3:00 AM daily to auto-generate certificates for doctors whose preferredDay matches current day of month
+  - **Duplicate Prevention**: Tracks generated certificates to prevent duplicate sends in the same month
+  - **Manual Trigger**: Admin can manually trigger certificate generation for specific opt-ins
+  - **Automation Logging**: Comprehensive tracking of all certificate generations with status monitoring (pending, sent, error) and error details
+  - **Admin Dashboards**: Three admin pages - template management (/admin/npa/templates), opt-in list (/admin/npa/opt-ins), and automation logs (/admin/npa/logs)
+  - **Database Schema**: Three tables (npa_templates, npa_opt_ins with unique userId constraint, npa_automation) with proper foreign key relationships
+  - **API Endpoints**: 11 RESTful endpoints for complete CRUD operations and automation control
+  - **Integration**: Listed in AI Tools section with dedicated routes (/automate-npa, /ai-tools/automate-npa) and navigation
 - **WhatsApp Integration**: Extensive use of BigTos API for OTP delivery, course enrollments, quiz completion certificates, masterclass bookings, research service updates, and Medical Voices updates, with comprehensive logging. Fixed response parsing to recognize multiple success formats.
 - **Doctor-Hospital Relationships**: Bidirectional relationship system using existing doctor job fields (jobPrivateHospital, jobAddedPrivateHospital) with endpoints for querying doctors by hospital and hospitals by doctor, featuring exact case-insensitive name matching and approval status filtering.
 - **UI/UX**: Custom design system built on Material Design principles, optimized for healthcare professionals, with clear typography and a focus on readability and professionalism.
@@ -83,4 +89,6 @@ The backend uses **Node.js** with **Express.js** and **TypeScript** for a REST A
     -   `ws`: WebSocket library.
     -   `express-session`, `memorystore`: Server-side session management.
     -   `jimp`: Image manipulation for certificate generation.
+    -   `html-pdf-node`: PDF generation from HTML templates.
+    -   `node-cron`: Task scheduling for automated processes.
 -   **Development Tools**: `tsx`, `esbuild`, `tailwindcss`, `autoprefixer`.
