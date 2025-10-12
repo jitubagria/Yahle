@@ -252,7 +252,7 @@ export function setupWebSocket(httpServer: HTTPServer) {
       // Update session status
       await db.execute(sql`
         UPDATE quiz_sessions 
-        SET status = 'completed'
+        SET status = 'finished'
         WHERE quiz_id = ${quizId}
       `);
     } finally {
