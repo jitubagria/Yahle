@@ -67,6 +67,71 @@ app.use((req, res, next) => {
   app.set('socketio', io);
   app.set('startLiveQuiz', startLiveQuiz);
 
+  // Auto-start quizzes based on scheduled start time
+  async function autoStartQuizzes() {
+    try {
+      const { db } = await import('./db');
+      const { quizzes, quizQuestions } = await import('@shared/schema');
+      const { and, lte, eq } = await import('drizzle-orm');
+
+      // Find quizzes that should start now
+      const now = new Date();
+      const quizzesToStart = await db.select()
+        .from(quizzes)
+        .where(and(
+          lte(quizzes.startTime, now),
+          eq(quizzes.status, 'draft')
+        ));
+
+      for (const quiz of quizzesToStart) {
+        console.log(`Auto-starting quiz: ${quiz.title} (ID: ${quiz.id})`);
+        
+        try {
+          // Update quiz status to active first
+          await db.update(quizzes)
+            .set({ status: 'active' })
+            .where(eq(quizzes.id, quiz.id));
+
+          // Emit auto-start notification to all connected clients in quiz room
+          const roomName = `quiz-${quiz.id}`;
+          io.to(roomName).emit('quiz:auto-start', {
+            quizId: quiz.id,
+            title: quiz.title,
+            message: 'Quiz is starting automatically...',
+          });
+
+          // Start live quiz orchestration (non-blocking)
+          // The startLiveQuiz function will create session internally if needed
+          startLiveQuiz(quiz.id).catch(async (err: Error) => {
+            console.error(`Auto-start orchestration error for quiz ${quiz.id}:`, err);
+            
+            // Revert status back to draft so it can be retried
+            try {
+              await db.update(quizzes)
+                .set({ status: 'draft' })
+                .where(eq(quizzes.id, quiz.id));
+              console.log(`Reverted quiz ${quiz.id} to draft for retry`);
+            } catch (revertErr) {
+              console.error(`Failed to revert quiz ${quiz.id} status:`, revertErr);
+            }
+          });
+
+          console.log(`Successfully triggered auto-start for quiz ${quiz.id}`);
+        } catch (err) {
+          console.error(`Failed to auto-start quiz ${quiz.id}:`, err);
+        }
+      }
+    } catch (error) {
+      console.error('Auto-start scheduler error:', error);
+    }
+  }
+
+  // Run auto-start check every 30 seconds
+  setInterval(autoStartQuizzes, 30000);
+  
+  // Run immediately on startup
+  autoStartQuizzes();
+
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";

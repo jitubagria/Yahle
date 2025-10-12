@@ -137,108 +137,129 @@ export function setupWebSocket(httpServer: HTTPServer) {
   // Start quiz orchestration
   async function startLiveQuiz(quizId: number) {
     const roomName = `quiz-${quizId}`;
-    const session = activeSessions.get(quizId);
+    let session = activeSessions.get(quizId);
     
-    if (!session || session.isRunning) return;
+    // Create session if it doesn't exist (for auto-start scenarios)
+    if (!session) {
+      const [quiz] = await db.select().from(quizzes).where(eq(quizzes.id, quizId)).limit(1);
+      const questions = await db.select().from(quizQuestions)
+        .where(eq(quizQuestions.quizId, quizId))
+        .orderBy(quizQuestions.orderIndex);
+
+      session = {
+        quizId,
+        currentQuestionIndex: -1,
+        totalQuestions: questions.length,
+        questionTime: quiz?.questionTime || 10,
+        isRunning: false,
+        participants: new Set(),
+      };
+      activeSessions.set(quizId, session);
+    }
+
+    if (session.isRunning) return;
 
     session.isRunning = true;
 
-    // Get quiz and questions
-    const [quiz] = await db.select().from(quizzes).where(eq(quizzes.id, quizId)).limit(1);
-    const questions = await db.select().from(quizQuestions)
-      .where(eq(quizQuestions.quizId, quizId))
-      .orderBy(quizQuestions.orderIndex);
+    try {
+      // Get quiz and questions
+      const [quiz] = await db.select().from(quizzes).where(eq(quizzes.id, quizId)).limit(1);
+      const questions = await db.select().from(quizQuestions)
+        .where(eq(quizQuestions.quizId, quizId))
+        .orderBy(quizQuestions.orderIndex);
 
-    // Update quiz session in DB
-    await db.insert(quizSessions).values({
-      quizId,
-      currentQuestion: 0,
-      startedAt: new Date(),
-      status: 'running',
-    });
-
-    const questionTime = quiz?.questionTime || 10;
-    const leaderboardDelay = 7; // seconds to show leaderboard
-
-    // Countdown phase - preload first question
-    io.to(roomName).emit('quiz:countdown', {
-      seconds: 10,
-      message: 'Quiz starting soon...',
-    });
-
-    // Preload first question during countdown
-    if (questions[0]) {
-      setTimeout(() => {
-        io.to(roomName).emit('quiz:preload', { 
-          question: questions[0],
-          questionNumber: 1,
-          totalQuestions: questions.length,
-        });
-      }, 3000); // Preload 3 seconds into countdown
-    }
-
-    await sleep(10000); // 10-second countdown
-
-    // Question loop
-    for (let i = 0; i < questions.length; i++) {
-      const question = questions[i];
-      session.currentQuestionIndex = i;
-
-      // Show question
-      io.to(roomName).emit('quiz:question', {
-        question,
-        questionNumber: i + 1,
-        totalQuestions: questions.length,
-        timeLimit: questionTime,
+      // Update quiz session in DB
+      await db.insert(quizSessions).values({
+        quizId,
+        currentQuestion: 0,
+        startedAt: new Date(),
+        status: 'running',
       });
 
-      // Wait for question time
-      await sleep(questionTime * 1000);
+      const questionTime = quiz?.questionTime || 10;
+      const leaderboardDelay = 7; // seconds to show leaderboard
 
-      // Auto-timeout
-      io.to(roomName).emit('quiz:timeout', { questionId: question.id });
-
-      // Calculate and show leaderboard
-      await recalculateRanks(quizId);
-      const leaderboard = await getLeaderboard(quizId);
-
-      io.to(roomName).emit('quiz:leaderboard', {
-        leaderboard,
-        topText: `Top Performers after Question ${i + 1}`,
-        questionNumber: i + 1,
+      // Countdown phase - preload first question
+      io.to(roomName).emit('quiz:countdown', {
+        seconds: 10,
+        message: 'Quiz starting soon...',
       });
 
-      // Preload next question while showing leaderboard
-      if (questions[i + 1]) {
+      // Preload first question during countdown
+      if (questions[0]) {
         setTimeout(() => {
-          io.to(roomName).emit('quiz:preload', {
-            question: questions[i + 1],
-            questionNumber: i + 2,
+          io.to(roomName).emit('quiz:preload', { 
+            question: questions[0],
+            questionNumber: 1,
             totalQuestions: questions.length,
           });
-        }, 2000); // Preload 2 seconds into leaderboard
+        }, 3000); // Preload 3 seconds into countdown
       }
 
-      // Wait for leaderboard display
-      await sleep(leaderboardDelay * 1000);
+      await sleep(10000); // 10-second countdown
+
+      // Question loop
+      for (let i = 0; i < questions.length; i++) {
+        const question = questions[i];
+        session.currentQuestionIndex = i;
+
+        // Show question
+        io.to(roomName).emit('quiz:question', {
+          question,
+          questionNumber: i + 1,
+          totalQuestions: questions.length,
+          timeLimit: questionTime,
+        });
+
+        // Wait for question time
+        await sleep(questionTime * 1000);
+
+        // Auto-timeout
+        io.to(roomName).emit('quiz:timeout', { questionId: question.id });
+
+        // Calculate and show leaderboard
+        await recalculateRanks(quizId);
+        const leaderboard = await getLeaderboard(quizId);
+
+        io.to(roomName).emit('quiz:leaderboard', {
+          leaderboard,
+          topText: `Top Performers after Question ${i + 1}`,
+          questionNumber: i + 1,
+        });
+
+        // Preload next question while showing leaderboard
+        if (questions[i + 1]) {
+          setTimeout(() => {
+            io.to(roomName).emit('quiz:preload', {
+              question: questions[i + 1],
+              questionNumber: i + 2,
+              totalQuestions: questions.length,
+            });
+          }, 2000); // Preload 2 seconds into leaderboard
+        }
+
+        // Wait for leaderboard display
+        await sleep(leaderboardDelay * 1000);
+      }
+
+      // Quiz ended
+      const finalLeaderboard = await getLeaderboard(quizId);
+      io.to(roomName).emit('quiz:end', {
+        leaderboard: finalLeaderboard,
+        totalQuestions: questions.length,
+      });
+
+      // Update session status
+      await db.execute(sql`
+        UPDATE quiz_sessions 
+        SET status = 'completed'
+        WHERE quiz_id = ${quizId}
+      `);
+    } finally {
+      // Always cleanup session state, even on errors
+      session.isRunning = false;
+      activeSessions.delete(quizId);
     }
-
-    // Quiz ended
-    const finalLeaderboard = await getLeaderboard(quizId);
-    io.to(roomName).emit('quiz:end', {
-      leaderboard: finalLeaderboard,
-      totalQuestions: questions.length,
-    });
-
-    // Update session status
-    await db.execute(sql`
-      UPDATE quiz_sessions 
-      SET status = 'completed'
-      WHERE quiz_id = ${quizId}
-    `);
-
-    session.isRunning = false;
-    activeSessions.delete(quizId);
   }
 
   // Helper functions
