@@ -10,6 +10,7 @@ import { Progress } from '@/components/ui/progress';
 import { Trophy, Clock, CheckCircle, XCircle, Award } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import { getAuthenticatedUser } from '@/lib/auth';
 
 export default function QuizTake() {
   const { id } = useParams();
@@ -99,8 +100,8 @@ export default function QuizTake() {
   }, [started, timeRemaining, quizCompleted, quiz]);
 
   const handleStartQuiz = () => {
-    const userId = sessionStorage.getItem('userId');
-    if (!userId) {
+    const user = getAuthenticatedUser();
+    if (!user) {
       toast({
         title: 'Login Required',
         description: 'Please login to take quizzes',
@@ -120,8 +121,8 @@ export default function QuizTake() {
   const handleSubmitQuiz = () => {
     if (!id || !questions) return;
     
-    const userId = parseInt(sessionStorage.getItem('userId') || '0');
-    if (!userId) {
+    const user = getAuthenticatedUser();
+    if (!user || !user.id) {
       toast({
         title: 'Error',
         description: 'User session not found. Please login again.',
@@ -143,7 +144,7 @@ export default function QuizTake() {
 
     submitQuizMutation.mutate({
       quizId: parseInt(id),
-      userId,
+      userId: user.id,
       score: scorePercentage,
       totalQuestions: questions.length,
       timeTaken,

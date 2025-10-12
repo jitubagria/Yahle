@@ -13,7 +13,8 @@ import {
   TrendingUp,
   CheckCircle,
   Clock,
-  ArrowRight
+  ArrowRight,
+  Shield
 } from 'lucide-react';
 import { Link } from 'wouter';
 import { getAuthenticatedUser } from '@/lib/auth';
@@ -63,6 +64,34 @@ export default function UserDashboard() {
           </h1>
           <p className="text-muted-foreground">Here's your learning and activity overview</p>
         </div>
+
+        {/* Admin Access Card - Only for Admins */}
+        {user.role === 'admin' && (
+          <Card className="mb-8 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-500/20">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-blue-500/20 rounded-lg">
+                    <Shield className="w-6 h-6 text-blue-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold mb-1">Admin Dashboard</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Manage courses, certificates, users, and all platform settings
+                    </p>
+                  </div>
+                </div>
+                <Link href="/admin" data-testid="link-admin-dashboard">
+                  <Button size="lg" variant="default" className="gap-2">
+                    <Shield className="w-4 h-4" />
+                    Go to Admin Panel
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Overview Widgets */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
