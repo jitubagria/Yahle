@@ -170,7 +170,45 @@ export const courseProgress = pgTable("course_progress", {
   enrollmentId: integer("enrollment_id").references(() => enrollments.id).notNull(),
   moduleId: integer("module_id").references(() => courseModules.id).notNull(),
   completed: boolean("completed").default(false),
+  score: integer("score"), // score if module is a test
   completedAt: timestamp("completed_at"),
+});
+
+// Module Tests - tests associated with quiz-type modules
+export const moduleTests = pgTable("module_tests", {
+  id: serial("id").primaryKey(),
+  moduleId: integer("module_id").references(() => courseModules.id, { onDelete: 'cascade' }).notNull().unique(),
+  title: varchar("title", { length: 255 }).notNull(),
+  totalQuestions: integer("total_questions").default(0),
+  passingScore: integer("passing_score").default(60), // percentage
+  duration: integer("duration"), // in minutes
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Test Questions - MCQ questions for module tests
+export const testQuestions = pgTable("test_questions", {
+  id: serial("id").primaryKey(),
+  testId: integer("test_id").references(() => moduleTests.id, { onDelete: 'cascade' }).notNull(),
+  questionNo: integer("question_no").notNull(),
+  description: text("description").notNull(),
+  optionA: text("option_a").notNull(),
+  optionB: text("option_b").notNull(),
+  optionC: text("option_c").notNull(),
+  optionD: text("option_d").notNull(),
+  correctAnswer: varchar("correct_answer", { length: 1 }).notNull(), // A/B/C/D
+  marks: integer("marks").default(1),
+});
+
+// Test Responses - user answers for test questions
+export const testResponses = pgTable("test_responses", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  testId: integer("test_id").references(() => moduleTests.id).notNull(),
+  questionId: integer("question_id").references(() => testQuestions.id).notNull(),
+  selectedOption: varchar("selected_option", { length: 1 }).notNull(),
+  isCorrect: boolean("is_correct").notNull(),
+  score: integer("score").default(0),
+  answeredAt: timestamp("answered_at").defaultNow(),
 });
 
 // Course Certificates table
@@ -599,6 +637,20 @@ export const insertCourseProgressSchema = createInsertSchema(courseProgress).omi
   id: true,
 });
 
+export const insertModuleTestSchema = createInsertSchema(moduleTests).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertTestQuestionSchema = createInsertSchema(testQuestions).omit({
+  id: true,
+});
+
+export const insertTestResponseSchema = createInsertSchema(testResponses).omit({
+  id: true,
+  answeredAt: true,
+});
+
 export const insertCourseCertificateSchema = createInsertSchema(courseCertificates).omit({
   id: true,
   issuedAt: true,
@@ -754,6 +806,15 @@ export type InsertCourseModule = z.infer<typeof insertCourseModuleSchema>;
 
 export type CourseProgress = typeof courseProgress.$inferSelect;
 export type InsertCourseProgress = z.infer<typeof insertCourseProgressSchema>;
+
+export type ModuleTest = typeof moduleTests.$inferSelect;
+export type InsertModuleTest = z.infer<typeof insertModuleTestSchema>;
+
+export type TestQuestion = typeof testQuestions.$inferSelect;
+export type InsertTestQuestion = z.infer<typeof insertTestQuestionSchema>;
+
+export type TestResponse = typeof testResponses.$inferSelect;
+export type InsertTestResponse = z.infer<typeof insertTestResponseSchema>;
 
 export type CourseCertificate = typeof courseCertificates.$inferSelect;
 export type InsertCourseCertificate = z.infer<typeof insertCourseCertificateSchema>;
