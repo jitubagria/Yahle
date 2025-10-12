@@ -2253,6 +2253,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== PAYMENT REPORTS ROUTES =====
+  
+  // Get payment statistics
+  app.get("/api/admin/payments/stats", requireAdmin, async (req, res) => {
+    try {
+      // Get payment status counts and revenue
+      const statusStats = await db.execute(sql`
+        SELECT 
+          payment_status,
+          COUNT(*) as count,
+          SUM(CASE WHEN payment_status = 'paid' THEN c.price ELSE 0 END) as revenue
+        FROM enrollments e
+        JOIN courses c ON e.course_id = c.id
+        GROUP BY payment_status
+      `);
+      
+      // Initialize stats
+      const stats = {
+        totalRevenue: 0,
+        totalPaid: 0,
+        totalFree: 0,
+        totalRefunded: 0,
+        revenueByStatus: {
+          paid: 0,
+          free: 0,
+          refunded: 0,
+        }
+      };
+      
+      // Process status stats
+      for (const row of statusStats.rows) {
+        const status = row.payment_status as string;
+        const count = parseInt(row.count as string);
+        const revenue = parseInt(row.revenue as string) || 0;
+        
+        if (status === 'paid') {
+          stats.totalPaid = count;
+          stats.totalRevenue = revenue;
+          stats.revenueByStatus.paid = revenue;
+        } else if (status === 'free') {
+          stats.totalFree = count;
+        } else if (status === 'refunded') {
+          stats.totalRefunded = count;
+        }
+      }
+      
+      // Get recent transactions with user and course details
+      const recentTransactions = await db.select({
+        id: enrollments.id,
+        userId: enrollments.userId,
+        courseId: enrollments.courseId,
+        courseTitle: courses.title,
+        userName: users.name,
+        paymentStatus: enrollments.paymentStatus,
+        paymentId: enrollments.paymentId,
+        enrolledAt: enrollments.enrolledAt,
+        coursePrice: courses.price,
+      })
+        .from(enrollments)
+        .leftJoin(users, eq(enrollments.userId, users.id))
+        .leftJoin(courses, eq(enrollments.courseId, courses.id))
+        .orderBy(desc(enrollments.enrolledAt))
+        .limit(100);
+      
+      res.json({
+        ...stats,
+        recentTransactions,
+      });
+    } catch (error) {
+      console.error("Get payment stats error:", error);
+      res.status(500).json({ error: "Failed to fetch payment stats" });
+    }
+  });
+
   // ===== ADMIN ROUTES =====
   app.get("/api/admin/stats", requireAdmin, async (req, res) => {
     try {
