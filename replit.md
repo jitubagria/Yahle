@@ -161,6 +161,31 @@ All notifications are logged in `bigtos_messages` table with delivery status.
 
 ## Recent Changes (Latest)
 
+### Admin Course & Module Management (Completed - October 12, 2025)
+- ✅ **Admin Course Management UI** (`/admin/courses`):
+  - Full CRUD interface for courses with create/edit/delete functionality
+  - Course listing table with status badges, enrollment counts, and pricing display
+  - CourseForm dialog component with React Hook Form + Zod validation
+  - CourseDeleteDialog with confirmation and cascade warning
+  - Comprehensive error handling with retry mechanism (distinguishes backend failures from empty states)
+  - Direct links to module management per course
+- ✅ **Admin Module Management UI** (`/admin/courses/:courseId/modules`):
+  - Complete module CRUD interface with visual content type indicators
+  - ModuleForm dialog for creating/editing modules (title, contentType, contentUrl, orderNo, duration, isPreview)
+  - Content type badges with icons (video, pdf, text, quiz)
+  - Order number display for module sequencing
+  - Preview badge for free-access modules
+  - ModuleDeleteDialog with student progress impact warning
+  - Error handling for both course and module queries with retry buttons
+- ✅ **Development Testing Enhancement**:
+  - Phone 9999999999 automatically gets admin role in development mode
+  - Allows full admin feature testing without manual database updates
+  - Session-based admin authentication with requireAdmin middleware
+- ✅ **End-to-End Testing**:
+  - Playwright test suite validates complete module CRUD flow
+  - Tests cover create, edit, delete operations with proper API calls
+  - Success toasts and UI updates verified
+
 ### Enhanced Certificate Generation System (In Progress - October 12, 2025)
 - ✅ **Database Schema Extended**:
   - Created `entity_templates` table for storing certificate templates (supports courses, quizzes, masterclasses)
