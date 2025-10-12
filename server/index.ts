@@ -3,6 +3,7 @@ import session from "express-session";
 import createMemoryStore from "memorystore";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { setupWebSocket } from "./liveQuiz";
 
 const app = express();
 app.use(express.json());
@@ -58,6 +59,13 @@ app.use((req, res, next) => {
 
 (async () => {
   const server = await registerRoutes(app);
+
+  // Setup WebSocket for live quizzes
+  const { io, startLiveQuiz } = setupWebSocket(server);
+  
+  // Store WebSocket instance in app for access in routes
+  app.set('socketio', io);
+  app.set('startLiveQuiz', startLiveQuiz);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

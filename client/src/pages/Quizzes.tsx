@@ -4,8 +4,9 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trophy, Clock, Award, Target, Filter, Coins, Sparkles } from 'lucide-react';
+import { Trophy, Clock, Award, Target, Filter, Coins, Sparkles, Calendar, CheckCircle } from 'lucide-react';
 import { Link } from 'wouter';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface Quiz {
   id: number;
@@ -22,6 +23,8 @@ interface Quiz {
   rewardInfo?: string;
   certificateType?: string;
   status?: string;
+  startTime?: string;
+  endTime?: string;
   timeLimit?: number;
   certificateTemplate?: string;
 }
@@ -42,16 +45,50 @@ export default function Quizzes() {
     return Array.from(cats);
   }, [quizzes]);
 
-  // Filter quizzes based on selected filters
-  const filteredQuizzes = useMemo(() => {
-    if (!quizzes) return [];
+  // Separate and sort quizzes
+  const { upcomingQuizzes, activeQuizzes, completedQuizzes } = useMemo(() => {
+    if (!quizzes) return { upcomingQuizzes: [], activeQuizzes: [], completedQuizzes: [] };
     
-    return quizzes.filter(quiz => {
-      if (typeFilter !== 'all' && quiz.type !== typeFilter) return false;
-      if (difficultyFilter !== 'all' && quiz.difficulty !== difficultyFilter) return false;
-      if (categoryFilter !== 'all' && quiz.category !== categoryFilter) return false;
-      return true;
+    const now = new Date();
+    const upcoming: Quiz[] = [];
+    const active: Quiz[] = [];
+    const completed: Quiz[] = [];
+
+    quizzes.forEach(quiz => {
+      // Apply filters
+      if (typeFilter !== 'all' && quiz.type !== typeFilter) return;
+      if (difficultyFilter !== 'all' && quiz.difficulty !== difficultyFilter) return;
+      if (categoryFilter !== 'all' && quiz.category !== categoryFilter) return;
+
+      // Categorize by time
+      if (quiz.startTime) {
+        const startTime = new Date(quiz.startTime);
+        if (startTime > now) {
+          upcoming.push(quiz);
+        } else if (quiz.endTime) {
+          const endTime = new Date(quiz.endTime);
+          if (endTime > now) {
+            active.push(quiz);
+          } else {
+            completed.push(quiz);
+          }
+        } else {
+          active.push(quiz);
+        }
+      } else {
+        // No start time means always available
+        active.push(quiz);
+      }
     });
+
+    // Sort upcoming by earliest start time
+    upcoming.sort((a, b) => {
+      const dateA = a.startTime ? new Date(a.startTime).getTime() : 0;
+      const dateB = b.startTime ? new Date(b.startTime).getTime() : 0;
+      return dateA - dateB;
+    });
+
+    return { upcomingQuizzes: upcoming, activeQuizzes: active, completedQuizzes: completed };
   }, [quizzes, typeFilter, difficultyFilter, categoryFilter]);
 
   const getDifficultyColor = (difficulty?: string) => {
@@ -70,6 +107,128 @@ export default function Quizzes() {
       default: return null;
     }
   };
+
+  const formatDateTime = (dateString?: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  };
+
+  const getTimeUntil = (dateString?: string) => {
+    if (!dateString) return '';
+    const now = new Date();
+    const target = new Date(dateString);
+    const diffMs = target.getTime() - now.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 60) return `Starts in ${diffMins} min`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `Starts in ${diffHours}h`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `Starts in ${diffDays} days`;
+  };
+
+  const QuizCard = ({ quiz }: { quiz: Quiz }) => (
+    <Card className="hover:shadow-lg transition-all hover-elevate" data-testid={`card-quiz-${quiz.id}`}>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <CardTitle className="flex-1" data-testid={`text-quiz-title-${quiz.id}`}>{quiz.title}</CardTitle>
+          <div className="flex flex-col gap-1">
+            {quiz.status === 'active' && (
+              <Badge className="bg-green-500" data-testid={`badge-status-${quiz.id}`}>Active</Badge>
+            )}
+            {quiz.type && (
+              <Badge variant="outline" className="gap-1" data-testid={`badge-type-${quiz.id}`}>
+                {getTypeIcon(quiz.type)}
+                {quiz.type}
+              </Badge>
+            )}
+          </div>
+        </div>
+        <CardDescription>{quiz.description}</CardDescription>
+        {quiz.category && (
+          <Badge variant="secondary" className="w-fit mt-2" data-testid={`badge-category-${quiz.id}`}>
+            {quiz.category}
+          </Badge>
+        )}
+      </CardHeader>
+
+      <CardContent>
+        <div className="space-y-3">
+          {quiz.difficulty && (
+            <div className="flex items-center gap-2">
+              <Badge className={getDifficultyColor(quiz.difficulty)} data-testid={`badge-difficulty-${quiz.id}`}>
+                {quiz.difficulty}
+              </Badge>
+            </div>
+          )}
+          
+          {quiz.startTime && (
+            <div className="flex items-center gap-2 text-sm bg-primary/10 p-2 rounded-md">
+              <Calendar className="w-4 h-4 text-primary" />
+              <div>
+                <div className="font-semibold">{formatDateTime(quiz.startTime)}</div>
+                <div className="text-xs text-muted-foreground">{getTimeUntil(quiz.startTime)}</div>
+              </div>
+            </div>
+          )}
+          
+          <div className="space-y-2">
+            {(quiz.duration || quiz.questionTime) && (
+              <div className="flex items-center gap-2 text-sm">
+                <Clock className="w-4 h-4 text-muted-foreground" />
+                <span data-testid={`text-duration-${quiz.id}`}>
+                  {quiz.duration ? `${quiz.duration} min total` : `${quiz.questionTime}s per question`}
+                </span>
+              </div>
+            )}
+            {quiz.totalQuestions && (
+              <div className="flex items-center gap-2 text-sm">
+                <Target className="w-4 h-4 text-muted-foreground" />
+                <span>{quiz.totalQuestions} Questions</span>
+              </div>
+            )}
+            {quiz.passingScore && (
+              <div className="flex items-center gap-2 text-sm">
+                <Target className="w-4 h-4 text-muted-foreground" />
+                <span data-testid={`text-passing-score-${quiz.id}`}>Pass at {quiz.passingScore}%</span>
+              </div>
+            )}
+            {quiz.certificateType && (
+              <div className="flex items-center gap-2 text-sm text-amber-600">
+                <Award className="w-4 h-4" />
+                <span data-testid={`text-certificate-type-${quiz.id}`}>{quiz.certificateType} Certificate</span>
+              </div>
+            )}
+            {quiz.entryFee && quiz.entryFee > 0 && (
+              <div className="flex items-center gap-2 text-sm text-primary">
+                <Coins className="w-4 h-4" />
+                <span data-testid={`text-entry-fee-${quiz.id}`}>₹{quiz.entryFee}</span>
+              </div>
+            )}
+            {quiz.rewardInfo && (
+              <div className="text-sm text-green-600 font-medium" data-testid={`text-reward-info-${quiz.id}`}>
+                {quiz.rewardInfo}
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+
+      <CardFooter>
+        <Link href={`/quiz/${quiz.id}`} className="w-full">
+          <Button className="w-full" data-testid={`button-start-quiz-${quiz.id}`}>
+            {quiz.startTime && new Date(quiz.startTime) > new Date() ? 'Join When Live' : 'Start Quiz'}
+          </Button>
+        </Link>
+      </CardFooter>
+    </Card>
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -164,117 +323,95 @@ export default function Quizzes() {
               </Card>
             ))}
           </div>
-        ) : filteredQuizzes && filteredQuizzes.length > 0 ? (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredQuizzes.map((quiz) => (
-              <Card key={quiz.id} className="hover:shadow-lg transition-all hover-elevate" data-testid={`card-quiz-${quiz.id}`}>
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <CardTitle className="flex-1" data-testid={`text-quiz-title-${quiz.id}`}>{quiz.title}</CardTitle>
-                    <div className="flex flex-col gap-1">
-                      {quiz.status === 'active' && (
-                        <Badge className="bg-green-500" data-testid={`badge-status-${quiz.id}`}>Active</Badge>
-                      )}
-                      {quiz.type && (
-                        <Badge variant="outline" className="gap-1" data-testid={`badge-type-${quiz.id}`}>
-                          {getTypeIcon(quiz.type)}
-                          {quiz.type}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  <CardDescription>{quiz.description}</CardDescription>
-                  {quiz.category && (
-                    <Badge variant="secondary" className="w-fit mt-2" data-testid={`badge-category-${quiz.id}`}>
-                      {quiz.category}
-                    </Badge>
-                  )}
-                </CardHeader>
-
-                <CardContent>
-                  <div className="space-y-3">
-                    {quiz.difficulty && (
-                      <div className="flex items-center gap-2">
-                        <Badge className={getDifficultyColor(quiz.difficulty)} data-testid={`badge-difficulty-${quiz.id}`}>
-                          {quiz.difficulty}
-                        </Badge>
-                      </div>
-                    )}
-                    
-                    <div className="space-y-2">
-                      {(quiz.duration || quiz.questionTime) && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <Clock className="w-4 h-4 text-muted-foreground" />
-                          <span data-testid={`text-duration-${quiz.id}`}>
-                            {quiz.duration ? `${quiz.duration} min total` : `${quiz.questionTime}s per question`}
-                          </span>
-                        </div>
-                      )}
-                      {quiz.passingScore && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <Target className="w-4 h-4 text-muted-foreground" />
-                          <span data-testid={`text-passing-score-${quiz.id}`}>Pass at {quiz.passingScore}%</span>
-                        </div>
-                      )}
-                      {quiz.certificateType && (
-                        <div className="flex items-center gap-2 text-sm text-amber-600">
-                          <Award className="w-4 h-4" />
-                          <span data-testid={`text-certificate-type-${quiz.id}`}>{quiz.certificateType} Certificate</span>
-                        </div>
-                      )}
-                      {quiz.entryFee && quiz.entryFee > 0 && (
-                        <div className="flex items-center gap-2 text-sm text-primary">
-                          <Coins className="w-4 h-4" />
-                          <span data-testid={`text-entry-fee-${quiz.id}`}>₹{quiz.entryFee}</span>
-                        </div>
-                      )}
-                      {quiz.rewardInfo && (
-                        <div className="text-sm text-green-600 font-medium" data-testid={`text-reward-info-${quiz.id}`}>
-                          {quiz.rewardInfo}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-
-                <CardFooter>
-                  <Link href={quiz.type === 'live' ? `/quiz/${quiz.id}/lobby` : `/quiz/${quiz.id}`} className="w-full">
-                    <Button className="w-full" data-testid={`button-start-quiz-${quiz.id}`}>
-                      {quiz.type === 'live' ? 'Join Lobby' : 'Start Quiz'}
-                    </Button>
-                  </Link>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
         ) : (
-          <div className="text-center py-20">
-            <div className="mx-auto w-20 h-20 bg-muted rounded-full flex items-center justify-center mb-6">
-              <Trophy className="w-10 h-10 text-muted-foreground" />
-            </div>
-            <h3 className="text-xl font-semibold mb-2">No quizzes match your filters</h3>
-            <p className="text-muted-foreground">Try adjusting your filter criteria</p>
-          </div>
-        )}
+          <Tabs defaultValue="upcoming" className="w-full">
+            <TabsList className="grid w-full grid-cols-3 mb-6">
+              <TabsTrigger value="upcoming" className="gap-2" data-testid="tab-upcoming">
+                <Calendar className="w-4 h-4" />
+                Upcoming ({upcomingQuizzes.length})
+              </TabsTrigger>
+              <TabsTrigger value="active" className="gap-2" data-testid="tab-active">
+                <Sparkles className="w-4 h-4" />
+                Available ({activeQuizzes.length})
+              </TabsTrigger>
+              <TabsTrigger value="completed" className="gap-2" data-testid="tab-completed">
+                <CheckCircle className="w-4 h-4" />
+                Completed ({completedQuizzes.length})
+              </TabsTrigger>
+            </TabsList>
 
-        {/* Leaderboard Teaser */}
-        {filteredQuizzes && filteredQuizzes.length > 0 && (
-          <div className="mt-12">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Trophy className="w-5 h-5 text-amber-500" />
-                  Top Performers
-                </CardTitle>
-                <CardDescription>Check out the leaderboard after taking a quiz</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Complete quizzes to see your ranking and compete with other medical professionals
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+            <TabsContent value="upcoming" className="mt-0">
+              {upcomingQuizzes.length > 0 ? (
+                <>
+                  <div className="mb-6">
+                    <h2 className="text-2xl font-bold mb-2">Upcoming Live Quizzes</h2>
+                    <p className="text-muted-foreground">Scheduled quizzes sorted by earliest start time</p>
+                  </div>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {upcomingQuizzes.map((quiz) => (
+                      <QuizCard key={quiz.id} quiz={quiz} />
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-20">
+                  <div className="mx-auto w-20 h-20 bg-muted rounded-full flex items-center justify-center mb-6">
+                    <Calendar className="w-10 h-10 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-xl font-semibold mb-2">No Upcoming Quizzes</h3>
+                  <p className="text-muted-foreground">Check back later for scheduled live quizzes</p>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="active" className="mt-0">
+              {activeQuizzes.length > 0 ? (
+                <>
+                  <div className="mb-6">
+                    <h2 className="text-2xl font-bold mb-2">Available Quizzes</h2>
+                    <p className="text-muted-foreground">Take these quizzes anytime</p>
+                  </div>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {activeQuizzes.map((quiz) => (
+                      <QuizCard key={quiz.id} quiz={quiz} />
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-20">
+                  <div className="mx-auto w-20 h-20 bg-muted rounded-full flex items-center justify-center mb-6">
+                    <Trophy className="w-10 h-10 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-xl font-semibold mb-2">No Available Quizzes</h3>
+                  <p className="text-muted-foreground">Try adjusting your filter criteria</p>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="completed" className="mt-0">
+              {completedQuizzes.length > 0 ? (
+                <>
+                  <div className="mb-6">
+                    <h2 className="text-2xl font-bold mb-2">Completed Quizzes</h2>
+                    <p className="text-muted-foreground">Past quizzes that have ended</p>
+                  </div>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {completedQuizzes.map((quiz) => (
+                      <QuizCard key={quiz.id} quiz={quiz} />
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-20">
+                  <div className="mx-auto w-20 h-20 bg-muted rounded-full flex items-center justify-center mb-6">
+                    <CheckCircle className="w-10 h-10 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-xl font-semibold mb-2">No Completed Quizzes</h3>
+                  <p className="text-muted-foreground">Quizzes that have ended will appear here</p>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         )}
       </div>
     </div>

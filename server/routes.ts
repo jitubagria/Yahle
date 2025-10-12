@@ -1566,7 +1566,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Start quiz session (admin only)
+  // Start quiz session (admin only or auto-triggered by start time)
   app.post("/api/quizzes/:id/start", requireAdmin, async (req, res) => {
     try {
       const quizId = parseInt(req.params.id);
@@ -1580,22 +1580,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Quiz not found" });
       }
 
-      // Create new session
-      const [session] = await db.insert(quizSessions)
-        .values({
-          quizId,
-          currentQuestion: 0,
-          startedAt: new Date(),
-          status: 'running'
-        })
-        .returning();
+      // Get WebSocket live quiz starter
+      const startLiveQuiz = app.get('startLiveQuiz');
+      
+      if (startLiveQuiz) {
+        // Start live quiz orchestration via WebSocket
+        startLiveQuiz(quizId).catch((err: Error) => {
+          console.error('Live quiz orchestration error:', err);
+        });
+      }
 
       // Update quiz status
       await db.update(quizzes)
         .set({ status: 'active' })
         .where(eq(quizzes.id, quizId));
 
-      res.json({ success: true, session });
+      res.json({ success: true, message: 'Live quiz started' });
     } catch (error) {
       console.error("Start quiz error:", error);
       res.status(500).json({ error: "Failed to start quiz" });

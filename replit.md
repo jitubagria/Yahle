@@ -14,9 +14,13 @@ Preferred communication style: Simple, everyday language.
 
 The frontend is built with **React 18** and **TypeScript**, utilizing **Vite** for development and bundling. **Wouter** handles client-side routing, and **TanStack Query (React Query)** manages server state, caching, and data fetching. The UI is constructed with **Shadcn/UI** components, styled using **Tailwind CSS** with a custom design system based on Material Design principles, an optimized color palette (primary blue), and Inter/JetBrains Mono fonts. Form handling uses **React Hook Form** with **Zod** validation. Key features include OTP-based phone authentication, doctor profile management with image cropping, search and filtering, and a responsive, mobile-first design.
 
+**WebSocket Integration**: The frontend uses **Socket.IO client** for real-time features in live quizzes, enabling synchronized question display, real-time leaderboards, and latency-free preloading of questions during quiz participation.
+
 ### Backend
 
 The backend uses **Node.js** with **Express.js** and **TypeScript** for a REST API server, following ESM modules. API endpoints are RESTful and organized by domain. Authentication is phone-based OTP via WhatsApp (BigTos API), with session management using `express-session` and HttpOnly cookies. User roles (admin, doctor, student, service_provider) provide role-based access control. The database layer uses **Drizzle ORM** with **Neon Serverless Postgres**, implementing a schema-first approach and `drizzle-kit` for migrations. Data models cover users, doctor profiles, courses, quizzes, jobs, masterclasses, research service requests, AI tool requests, hospital directories, and WhatsApp message logs.
+
+**WebSocket Server**: **Socket.IO** provides real-time bidirectional communication for live quiz orchestration. The system synchronizes quiz events across all participants, manages timed question phases, calculates real-time leaderboards, and preloads questions in the background to eliminate network latency.
 
 ### Storage
 
@@ -27,7 +31,14 @@ The backend uses **Node.js** with **Express.js** and **TypeScript** for a REST A
 - **Authentication**: Phone-based OTP (WhatsApp) with session management and secure HttpOnly cookies.
 - **User Management**: Role-based access control (RBAC) with distinct roles and protected routes.
 - **Course & Module Management**: Full CRUD operations for courses and modules, including content type indicators, ordering, and preview options.
-- **Quiz System**: Real-time quiz system with WebSocket support for live participation, leaderboards, and countdown timers. Production-ready API for quiz CRUD, join/submit, and ranking.
+- **Live Quiz System**: Advanced real-time quiz engine with WebSocket synchronization. Features include:
+  - **Synchronized Quiz Phases**: All participants see questions at exactly the same time via WebSocket events
+  - **Question Preloading**: Questions are preloaded in the background (during countdown and leaderboard phases) to eliminate network latency
+  - **Timed Orchestration**: Server-driven 10-second countdown → question display (10s default) → auto-timeout → leaderboard (7s) → next question loop
+  - **Real-time Leaderboards**: Ranks calculated and broadcast after each question with speed bonuses for faster correct answers
+  - **Zero-Latency UX**: Questions load instantly regardless of network speed through background preloading strategy
+  - **WebSocket Events**: `quiz:countdown`, `quiz:preload`, `quiz:question`, `quiz:submit-answer`, `quiz:timeout`, `quiz:leaderboard`, `quiz:end`
+  - **Competitive Scoring**: Base score + speed bonus system rewards both accuracy and response time
 - **Certificate & Notification System**: Dynamic certificate generation using Jimp with customizable templates, automatic WhatsApp delivery, and triggers for course completion, quiz completion, and masterclass bookings.
 - **Admin Dashboards**: Comprehensive admin panels for managing doctors, hospitals, courses, quizzes, jobs, AI tools, research services, users, messaging, payments, settings, and certificates. All 12 admin management pages implemented with full CRUD interfaces, protected by `requireAdmin` middleware.
   - **Payments Reports**: Revenue dashboard with total/paid/free/refunded breakdowns, recent transactions table with filtering, and safe error handling.

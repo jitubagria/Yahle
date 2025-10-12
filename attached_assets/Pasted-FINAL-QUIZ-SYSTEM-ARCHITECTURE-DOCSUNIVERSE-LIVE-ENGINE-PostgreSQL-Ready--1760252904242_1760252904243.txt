@@ -1,0 +1,122 @@
+FINAL QUIZ SYSTEM ARCHITECTURE — DOCSUNIVERSE LIVE ENGINE (PostgreSQL-Ready)
+________________________________________
+🧱 1️⃣ DATABASE ENTITY MAP
+Table	Purpose
+quizzes	Master configuration (title, timings, difficulty, type, etc.)
+quiz_questions	One record per question with options + correct answer
+quiz_sessions	Tracks live quiz instance status (waiting, running, ended)
+quiz_responses	Stores every user’s answer per question
+quiz_attempts	Aggregated summary for each user (total score, time, certificate flag)
+quiz_leaderboard	Cumulative score and rank updates after every question
+users	Participant profiles
+(Optional future) certificates	Generated certificate logs for verification and resend
+________________________________________
+🧩 2️⃣ QUIZ FLOW (SYNC + PRELOAD LOGIC)
+✅ Phases per Question
+Phase	Duration	Description
+Countdown	10 s	Q1 is pre-fetched to all users
+Question	question_time s (default = 10)	One question visible; timer locked
+Ranking	5–7 s	Show ranks and preload next question
+Loop	Until all quiz_questions exhausted	
+End	Final scores + certificate generation	
+________________________________________
+⚙️ 3️⃣ SERVER-SIDE WORKFLOW (Node + Socket.IO)
+Key socket events
+Event	Payload	Direction	Description
+quiz:start	{quizId}	server → clients	Starts countdown
+quiz:question	{question, total}	server → clients	Broadcasts visible question
+quiz:submit	{questionId, option, timeTaken}	client → server	User submission
+quiz:timeout	{questionId}	server → clients	Auto-lock
+quiz:leaderboard	{leaderboard, topText}	server → clients	Show rank animation
+quiz:preload	{next}	server → clients	Push next question in background
+quiz:end	{results}	server → clients	Quiz complete
+________________________________________
+🔁 Timed Server Loop
+for (const [i, q] of quiz.questions.entries()) {
+  io.to(room).emit("quiz:question", { q, total: quiz.questions.length });
+  await sleep(quiz.question_time * 1000);
+  await computeAndStoreScores(q);
+  const ranks = await getLeaderboard(quiz.id);
+  io.to(room).emit("quiz:leaderboard", { leaderboard: ranks, topText: `Toppers till Q${i+1}` });
+  if (quiz.questions[i + 1]) io.to(room).emit("quiz:preload", { next: quiz.questions[i + 1] });
+  await sleep(7 * 1000);
+}
+io.to(room).emit("quiz:end", finalResults);
+________________________________________
+🧠 4️⃣ FRONT-END (React) PHASES
+Phase	Component	Key Behaviour
+Countdown	<QuizLobby>	Shows “Starts in 10s”; preloads Q1
+Question	<QuestionCard>	Shows one question, timer bar, disables skip
+Ranking	<Leaderboard>	Animates top scorers, shows “Next starts in 5s”
+End	<QuizResult>	Displays total, rank, certificate button
+________________________________________
+🔢 5️⃣ SCORING LOGIC
+base = question.marks;
+speedBonus = Math.max(0, quiz.question_time - response_time);
+if (is_correct) score = base + speedBonus;
+else score = 0;
+•	Total score updated in quiz_leaderboard.total_score.
+•	Average response time stored as avg_time.
+•	Final ranks calculated: ORDER BY total_score DESC, avg_time ASC.
+________________________________________
+📡 6️⃣ DB INTERACTIONS PER PHASE
+Phase	Table(s) Updated	Action
+On submit	quiz_responses	Insert user choice, correctness, time
+After timeout	quiz_leaderboard	Update scores, ranks
+Quiz end	quiz_attempts	Create summary record
+Certificate	quiz_leaderboard / certificates	Store certificate URL, mark sent
+________________________________________
+🖼️ 7️⃣ CERTIFICATE GENERATION (INTEGRATED)
+•	Each quiz row has certificate_type and optional JPEG template.
+•	When quiz ends, top N % or “all passed” → generate certificate via Jimp:
+o	Overlay fields: name, quiz_title, rank, score, date.
+o	Upload to Cloudinary → store URL in quiz_leaderboard.certificate_url.
+o	Send via BigTos API:
+“🎓 Congrats {{name}} Rank #{{rank}} Score {{score}} — Certificate {{url}}”
+________________________________________
+🧩 8️⃣ CLIENT PRELOAD STRATEGY
+•	When receiving quiz:preload, store next question in local state + cache image:
+•	const img = new Image();
+•	img.src = payload.next.image;
+•	setNextQ(payload.next);
+•	When quiz:next or timer expires → instantly render cached question.
+•	This ensures lag-free transitions even on weak networks.
+________________________________________
+🧮 9️⃣ ADMIN DASHBOARD FIELDS
+Section	Controls
+Quiz Setup	Title, category, difficulty, type, entry_fee, reward_info
+Timing	question_time, total_questions, start_time, leaderboard_delay
+Questions	Manual add / Excel import
+Leaderboard View	Real-time ranks + export CSV
+Certificates	Upload template, resend buttons
+Reports	Attempts, avg score, participation
+________________________________________
+📊 10️⃣ SAMPLE QUERIES
+-- Fetch next question
+SELECT * FROM quiz_questions
+WHERE quiz_id = $1 AND order_index = $2;
+
+-- Compute leaderboard
+SELECT user_id, SUM(score) AS total_score, AVG(response_time) AS avg_time
+FROM quiz_responses
+WHERE quiz_id = $1
+GROUP BY user_id
+ORDER BY total_score DESC, avg_time ASC;
+________________________________________
+✅ 11️⃣ FINAL TIMELINE SUMMARY
+Step	Duration	Event
+Countdown	10 s	quiz:start → preload Q1
+Q1 active	10 s	quiz:question
+Rank animation	7 s	quiz:leaderboard + preload Q2
+Q2 active	10 s	next cycle
+…	…	loop
+Final	—	quiz:end → certificates
+________________________________________
+💡 12️⃣ PERFORMANCE + RESILIENCE
+Scenario	Mitigation
+Slow network	Client prefetch next Q JSON + image
+Disconnected user	/api/quiz/status endpoint re-syncs current phase
+Late joiner	Server sends current_question from quiz_sessions
+Leaderboard delay	Gives backend 7 s to compute + cache ranks
+Time sync	Clients use serverTime for countdown alignment
+
