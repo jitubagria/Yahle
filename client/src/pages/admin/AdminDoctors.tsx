@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Pencil, Trash2, Users, AlertCircle, RefreshCw, Mail, Phone } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { DoctorImportDialog } from '@/components/admin/DoctorImportDialog';
 
 type DoctorProfile = {
   id: number;
@@ -22,6 +23,7 @@ type DoctorProfile = {
 };
 
 export default function AdminDoctors() {
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const { data: doctors = [], isLoading, isError, error, refetch } = useQuery<DoctorProfile[]>({
     queryKey: ['/api/doctors'],
   });
@@ -44,7 +46,11 @@ export default function AdminDoctors() {
           <p className="text-muted-foreground">Manage doctor profiles, import Excel, approval queue</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" data-testid="button-import-doctors">
+          <Button 
+            variant="outline" 
+            onClick={() => setImportDialogOpen(true)}
+            data-testid="button-import-doctors"
+          >
             Import Excel/CSV
           </Button>
           <Button variant="outline" data-testid="button-approval-queue">
@@ -52,6 +58,11 @@ export default function AdminDoctors() {
           </Button>
         </div>
       </div>
+
+      <DoctorImportDialog 
+        open={importDialogOpen} 
+        onOpenChange={setImportDialogOpen} 
+      />
 
       <Card>
         <CardHeader>

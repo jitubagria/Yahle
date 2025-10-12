@@ -2,20 +2,23 @@ import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Pencil, Trash2, Building2, AlertCircle, RefreshCw, MapPin, Phone, Mail } from 'lucide-react';
+import { Plus, Pencil, Trash2, Building2, AlertCircle, RefreshCw, MapPin, Phone, Mail, FileSpreadsheet } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { HospitalImportDialog } from '@/components/admin/HospitalImportDialog';
 
 type Hospital = {
   id: number;
   name: string;
   address: string | null;
+  district: string | null;
   city: string | null;
   state: string | null;
   country: string | null;
   phone: string | null;
+  contactNumbers: string[] | null;
   email: string | null;
   website: string | null;
   specialties: string | null;
@@ -25,6 +28,7 @@ type Hospital = {
 
 export default function AdminHospitals() {
   const { toast } = useToast();
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const { data: hospitals = [], isLoading, isError, error, refetch } = useQuery<Hospital[]>({
     queryKey: ['/api/hospitals'],
   });
@@ -41,11 +45,26 @@ export default function AdminHospitals() {
           <h1 className="text-3xl font-bold mb-2">Hospitals Directory</h1>
           <p className="text-muted-foreground">Manage hospital listings and information</p>
         </div>
-        <Button data-testid="button-create-hospital">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Hospital
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setImportDialogOpen(true)}
+            data-testid="button-import-hospitals"
+          >
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Import Excel
+          </Button>
+          <Button data-testid="button-create-hospital">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Hospital
+          </Button>
+        </div>
       </div>
+
+      <HospitalImportDialog 
+        open={importDialogOpen} 
+        onOpenChange={setImportDialogOpen} 
+      />
 
       <Card>
         <CardHeader>

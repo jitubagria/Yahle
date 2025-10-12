@@ -215,6 +215,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Import doctors from Excel
+  app.post("/api/admin/doctors/import", requireAdmin, async (req, res) => {
+    try {
+      const { data } = req.body;
+      if (!Array.isArray(data) || data.length === 0) {
+        return res.status(400).json({ error: "Invalid or empty data array" });
+      }
+
+      const insertedDoctors = [];
+      const errors = [];
+
+      for (const row of data) {
+        try {
+          // First check if user exists with this phone, or create new user
+          const phone = row.phone || row.userMobile;
+          if (!phone) {
+            errors.push({ row, error: 'Phone number is required' });
+            continue;
+          }
+
+          let userId;
+          const [existingUser] = await db.select().from(users).where(eq(users.phone, phone)).limit(1);
+          
+          if (existingUser) {
+            userId = existingUser.id;
+          } else {
+            // Create new user
+            const [newUser] = await db.insert(users).values({
+              phone,
+              role: 'doctor',
+              isVerified: true,
+            }).returning();
+            userId = newUser.id;
+          }
+
+          // Check if profile exists for this user
+          const [existingProfile] = await db.select()
+            .from(doctorProfiles)
+            .where(eq(doctorProfiles.userId, userId))
+            .limit(1);
+
+          if (existingProfile) {
+            errors.push({ row, error: 'Profile already exists for this phone number' });
+            continue;
+          }
+
+          // Create doctor profile
+          const profileData = {
+            userId,
+            firstName: row.firstName || row.first_name || null,
+            middleName: row.middleName || row.middle_name || null,
+            lastName: row.lastName || row.last_name || null,
+            email: row.email || null,
+            userMobile: phone,
+            alternateno: row.alternateno || row.alternate_no || null,
+            professionaldegree: row.professionaldegree || row.professional_degree || null,
+            pgBranch: row.pgBranch || row.pg_branch || null,
+            ugAdmissionYear: row.ugAdmissionYear || row.ug_admission_year || null,
+            ugLocation: row.ugLocation || row.ug_location || null,
+            ugCollege: row.ugCollege || row.ug_college || null,
+            jobCity: row.jobCity || row.job_city || null,
+            jobState: row.jobState || row.job_state || null,
+            isprofilecomplete: false,
+          };
+
+          const [inserted] = await db.insert(doctorProfiles).values(profileData).returning();
+          insertedDoctors.push(inserted);
+        } catch (rowError) {
+          errors.push({ row, error: String(rowError) });
+        }
+      }
+
+      res.json({ 
+        success: true, 
+        count: insertedDoctors.length,
+        doctors: insertedDoctors,
+        errors: errors.length > 0 ? errors : undefined
+      });
+    } catch (error) {
+      console.error("Import doctors error:", error);
+      res.status(500).json({ error: "Failed to import doctors" });
+    }
+  });
+
   // ===== COURSE ROUTES =====
   app.get("/api/courses", async (req, res) => {
     try {
@@ -2074,6 +2158,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Get hospitals error:", error);
       res.status(500).json({ error: "Failed to fetch hospitals" });
+    }
+  });
+
+  // Import hospitals from Excel
+  app.post("/api/admin/hospitals/import", requireAdmin, async (req, res) => {
+    try {
+      const { data } = req.body;
+      if (!Array.isArray(data) || data.length === 0) {
+        return res.status(400).json({ error: "Invalid or empty data array" });
+      }
+
+      // Insert hospitals in batches
+      const insertedHospitals = [];
+      for (const row of data) {
+        const hospitalData = {
+          name: row.name || '',
+          address: row.address || null,
+          district: row.district || null,
+          city: row.city || null,
+          state: row.state || null,
+          country: row.country || 'India',
+          phone: row.phone || null,
+          contactNumbers: row.contactNumbers ? (Array.isArray(row.contactNumbers) ? row.contactNumbers : [row.contactNumbers]) : null,
+          email: row.email || null,
+          website: row.website || null,
+          specialties: row.specialties || null,
+          description: row.description || null,
+          image: row.image || null,
+        };
+
+        const [inserted] = await db.insert(hospitals).values(hospitalData).returning();
+        insertedHospitals.push(inserted);
+      }
+
+      res.json({ 
+        success: true, 
+        count: insertedHospitals.length,
+        hospitals: insertedHospitals 
+      });
+    } catch (error) {
+      console.error("Import hospitals error:", error);
+      res.status(500).json({ error: "Failed to import hospitals" });
     }
   });
 
