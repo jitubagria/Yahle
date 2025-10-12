@@ -17,6 +17,9 @@ export const contentTypeEnum = pgEnum("content_type", ["video", "pdf", "text", "
 export const paymentStatusEnum = pgEnum("payment_status", ["free", "paid", "refunded"]);
 export const entityTypeEnum = pgEnum("entity_type", ["course", "quiz", "masterclass"]);
 export const approvalStatusEnum = pgEnum("approval_status", ["pending", "approved", "rejected"]);
+export const voiceStatusEnum = pgEnum("voice_status", ["draft", "active", "closed"]);
+export const visibilityEnum = pgEnum("visibility", ["public", "private"]);
+export const rsvpStatusEnum = pgEnum("rsvp_status", ["interested", "confirmed", "withdrawn"]);
 
 // Users table
 export const users = pgTable("users", {
@@ -853,3 +856,119 @@ export type InsertBigtosMessage = z.infer<typeof insertBigtosMessageSchema>;
 
 export type Setting = typeof settings.$inferSelect;
 export type InsertSetting = z.infer<typeof insertSettingSchema>;
+
+// Medical Voices tables
+export const medicalVoices = pgTable("medical_voices", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  slug: varchar("slug", { length: 255 }).notNull().unique(),
+  shortDescription: text("short_description"),
+  description: text("description"),
+  category: varchar("category", { length: 100 }),
+  bannerImage: text("banner_image"),
+  relatedDocuments: text("related_documents"), // JSON stringified array
+  relatedImages: text("related_images"), // JSON stringified array
+  concernedAuthority: varchar("concerned_authority", { length: 255 }),
+  targetDepartment: varchar("target_department", { length: 255 }),
+  mediaContacts: text("media_contacts"),
+  visibility: visibilityEnum("visibility").default("public"),
+  status: voiceStatusEnum("status").default("active"),
+  supportersCount: integer("supporters_count").default(0),
+  
+  // Gathering fields
+  hasGathering: boolean("has_gathering").default(false),
+  gatheringDate: timestamp("gathering_date"),
+  gatheringLocation: varchar("gathering_location", { length: 255 }),
+  gatheringAddress: text("gathering_address"),
+  gatheringCity: varchar("gathering_city", { length: 100 }),
+  gatheringState: varchar("gathering_state", { length: 100 }),
+  gatheringPin: varchar("gathering_pin", { length: 20 }),
+  gatheringMapLink: text("gathering_map_link"),
+  gatheringNotes: text("gathering_notes"),
+  
+  creatorId: integer("creator_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const medicalVoiceSupporters = pgTable("medical_voice_supporters", {
+  id: serial("id").primaryKey(),
+  voiceId: integer("voice_id").references(() => medicalVoices.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  motivationNote: text("motivation_note"),
+  joinedAt: timestamp("joined_at").defaultNow(),
+});
+
+export const medicalVoiceUpdates = pgTable("medical_voice_updates", {
+  id: serial("id").primaryKey(),
+  voiceId: integer("voice_id").references(() => medicalVoices.id).notNull(),
+  updateTitle: varchar("update_title", { length: 255 }),
+  updateBody: text("update_body"),
+  createdAt: timestamp("created_at").defaultNow(),
+  notifySupporters: boolean("notify_supporters").default(true),
+});
+
+export const medicalVoiceContacts = pgTable("medical_voice_contacts", {
+  id: serial("id").primaryKey(),
+  voiceId: integer("voice_id").references(() => medicalVoices.id).notNull(),
+  name: varchar("name", { length: 150 }),
+  designation: varchar("designation", { length: 100 }),
+  phone: varchar("phone", { length: 20 }),
+  email: varchar("email", { length: 150 }),
+  isPrimary: boolean("is_primary").default(false),
+  visible: boolean("visible").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const medicalVoiceGatheringJoins = pgTable("medical_voice_gathering_joins", {
+  id: serial("id").primaryKey(),
+  voiceId: integer("voice_id").references(() => medicalVoices.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  status: rsvpStatusEnum("status").default("interested"),
+  remarks: text("remarks"),
+  joinedAt: timestamp("joined_at").defaultNow(),
+});
+
+// Medical Voices insert schemas
+export const insertMedicalVoiceSchema = createInsertSchema(medicalVoices).omit({ 
+  id: true, 
+  supportersCount: true,
+  createdAt: true, 
+  updatedAt: true 
+});
+
+export const insertMedicalVoiceSupporterSchema = createInsertSchema(medicalVoiceSupporters).omit({ 
+  id: true, 
+  joinedAt: true 
+});
+
+export const insertMedicalVoiceUpdateSchema = createInsertSchema(medicalVoiceUpdates).omit({ 
+  id: true, 
+  createdAt: true 
+});
+
+export const insertMedicalVoiceContactSchema = createInsertSchema(medicalVoiceContacts).omit({ 
+  id: true, 
+  createdAt: true 
+});
+
+export const insertMedicalVoiceGatheringJoinSchema = createInsertSchema(medicalVoiceGatheringJoins).omit({ 
+  id: true, 
+  joinedAt: true 
+});
+
+// Medical Voices types
+export type MedicalVoice = typeof medicalVoices.$inferSelect;
+export type InsertMedicalVoice = z.infer<typeof insertMedicalVoiceSchema>;
+
+export type MedicalVoiceSupporter = typeof medicalVoiceSupporters.$inferSelect;
+export type InsertMedicalVoiceSupporter = z.infer<typeof insertMedicalVoiceSupporterSchema>;
+
+export type MedicalVoiceUpdate = typeof medicalVoiceUpdates.$inferSelect;
+export type InsertMedicalVoiceUpdate = z.infer<typeof insertMedicalVoiceUpdateSchema>;
+
+export type MedicalVoiceContact = typeof medicalVoiceContacts.$inferSelect;
+export type InsertMedicalVoiceContact = z.infer<typeof insertMedicalVoiceContactSchema>;
+
+export type MedicalVoiceGatheringJoin = typeof medicalVoiceGatheringJoins.$inferSelect;
+export type InsertMedicalVoiceGatheringJoin = z.infer<typeof insertMedicalVoiceGatheringJoinSchema>;
