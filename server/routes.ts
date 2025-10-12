@@ -680,6 +680,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .where(eq(courses.id, courseId));
 
+      // Send WhatsApp enrollment notification
+      try {
+        await bigtosService.sendCourseEnrollmentNotification(user.phone, course.title);
+      } catch (notifError) {
+        console.error('Failed to send enrollment notification:', notifError);
+      }
+
       res.json(enrollment);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -1657,6 +1664,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error('Failed to generate masterclass certificate:', certError);
       }
 
+      // Send WhatsApp booking confirmation notification
+      try {
+        const scheduledDate = masterclass.scheduledAt 
+          ? new Date(masterclass.scheduledAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+          : 'TBD';
+        await bigtosService.sendMasterclassBookingNotification(user.phone, masterclass.title, scheduledDate);
+      } catch (notifError) {
+        console.error('Failed to send masterclass booking notification:', notifError);
+      }
+
       res.json({ success: true, booking });
     } catch (error) {
       console.error("Book masterclass error:", error);
@@ -1778,6 +1795,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Create research request error:", error);
       res.status(400).json({ error: "Failed to create research request" });
+    }
+  });
+
+  // Update research service request status (admin only)
+  app.patch("/api/admin/research-services/requests/:id", requireAdmin, async (req, res) => {
+    try {
+      const requestId = parseInt(req.params.id);
+      if (isNaN(requestId)) {
+        return res.status(400).json({ error: "Invalid request ID" });
+      }
+
+      const { status } = req.body;
+      if (!status || !['pending', 'in_progress', 'completed', 'cancelled'].includes(status)) {
+        return res.status(400).json({ error: "Valid status is required (pending, in_progress, completed, cancelled)" });
+      }
+
+      // Get the request with user info for WhatsApp notification
+      const [request] = await db.select({
+        id: researchServiceRequests.id,
+        userId: researchServiceRequests.userId,
+        title: researchServiceRequests.title,
+        serviceType: researchServiceRequests.serviceType,
+        userPhone: users.phone,
+      })
+        .from(researchServiceRequests)
+        .innerJoin(users, eq(researchServiceRequests.userId, users.id))
+        .where(eq(researchServiceRequests.id, requestId))
+        .limit(1);
+
+      if (!request) {
+        return res.status(404).json({ error: "Research request not found" });
+      }
+
+      // Update the status
+      const [updated] = await db.update(researchServiceRequests)
+        .set({ status })
+        .where(eq(researchServiceRequests.id, requestId))
+        .returning();
+
+      // Send WhatsApp notification about status change
+      try {
+        await bigtosService.sendResearchServiceNotification(
+          request.userPhone, 
+          request.title || request.serviceType, 
+          status
+        );
+      } catch (notifError) {
+        console.error('Failed to send research service notification:', notifError);
+      }
+
+      res.json({ success: true, request: updated });
+    } catch (error) {
+      console.error("Update research request error:", error);
+      res.status(500).json({ error: "Failed to update research request" });
     }
   });
 
