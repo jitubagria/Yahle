@@ -1,0 +1,363 @@
+DOCSUNIVERSE COURSE SYSTEM — WITH LESSON TESTS, RESULTS & CERTIFICATES
+
+(Full Modern Web Plan: React + Node + PostgreSQL)
+
+🧩 1️⃣ OVERVIEW
+Feature	Description
+Modular Courses	Each course has multiple lessons (video, PDF, text, or test).
+Lesson Tests	Each lesson may contain a small test (MCQs).
+Excel Import	Admin can bulk upload lesson questions from Excel.
+User Enrollment	Tracks each user’s progress & test scores.
+Resume Support	Saves user’s current module & question for seamless continuation.
+Results + Scoring	Immediate lesson test result + overall cumulative score.
+Completion Certificate	Generated automatically when all lessons/tests are completed successfully.
+Certificate Template	JPEG background per course with dynamic text overlay.
+🧱 2️⃣ DATABASE STRUCTURE (PostgreSQL)
+
+Using Prisma ORM for schema management.
+
+Table: courses
+
+(as defined earlier — reused)
+
+id SERIAL PRIMARY KEY
+title VARCHAR(255)
+description TEXT
+instructor VARCHAR(255)
+duration INTEGER
+price INTEGER DEFAULT 0
+thumbnail_image TEXT
+enrollment_count INTEGER DEFAULT 0
+is_active BOOLEAN DEFAULT TRUE
+created_at TIMESTAMP DEFAULT now()
+updated_at TIMESTAMP DEFAULT now()
+
+Table: course_modules
+
+Represents lessons or chapters.
+
+id SERIAL PRIMARY KEY
+course_id INT REFERENCES courses(id)
+title VARCHAR(255)
+content_type ENUM('video','pdf','text','test')
+content_url TEXT
+order_no INT
+duration INTEGER
+is_preview BOOLEAN DEFAULT FALSE
+created_at TIMESTAMP DEFAULT now()
+
+Table: module_tests
+
+Each “test-type” lesson links to questions.
+
+Column	Type	Description
+id	SERIAL PK	
+module_id	INT REFERENCES course_modules(id)	Lesson owning the test
+title	VARCHAR(255)	Test title
+total_questions	INT	Derived count
+passing_score	INT	%
+duration	INT	Seconds or minutes
+created_at	TIMESTAMP	
+Table: test_questions
+
+Imported manually or via Excel.
+
+Column	Type	Description
+id	SERIAL PK	
+test_id	INT REFERENCES module_tests(id)	Linked test
+question_no	INT	Order
+description	TEXT	Question text
+option_a	TEXT	Option A
+option_b	TEXT	Option B
+option_c	TEXT	Option C
+option_d	TEXT	Option D
+correct_answer	CHAR(1)	A/B/C/D
+marks	INT DEFAULT 1	Weight
+Table: test_responses
+
+User answers per test.
+
+Column	Type
+id	SERIAL PK
+user_id	UUID REFERENCES users(id)
+test_id	INT REFERENCES module_tests(id)
+question_id	INT REFERENCES test_questions(id)
+selected_option	CHAR(1)
+is_correct	BOOLEAN
+score	INT
+answered_at	TIMESTAMP
+Table: course_enrollments
+
+Tracks user → course association.
+
+Column	Type
+id	SERIAL PK
+user_id	UUID FK users(id)
+course_id	INT FK courses(id)
+current_module_id	INT
+progress	INT
+score	FLOAT DEFAULT 0
+certificate_generated	BOOLEAN DEFAULT FALSE
+enrolled_at	TIMESTAMP DEFAULT now()
+Table: course_progress
+
+Lesson-wise tracking.
+
+Column	Type
+id	SERIAL PK
+enrollment_id	INT FK course_enrollments(id)
+module_id	INT FK course_modules(id)
+completed	BOOLEAN
+score	FLOAT
+completed_at	TIMESTAMP
+Table: certificates
+
+(same unified certificate structure as earlier)
+
+⚙️ 3️⃣ ADMIN DASHBOARD — COURSE BUILDER
+
+Path: /admin/courses/:id
+
+🧱 Admin Tabs:
+
+Basic Info → Title, description, instructor, duration, price, thumbnail.
+
+Modules → Add/Edit lessons.
+
+Tests → Add test lessons & import questions.
+
+Certificate Template → Upload JPEG + configure font and text overlay.
+
+Enrollments & Analytics → View users, scores, completion rates.
+
+🧾 Import from Excel
+
+Excel file columns:
+Test ID | Question No | Description | Option A | Option B | Option C | Option D | Correct Answer
+
+Upload → preview → confirm → insert into test_questions.
+
+API:
+POST /api/admin/tests/:testId/import
+
+💡 Analytics
+
+Course Completion %
+
+Average Test Score
+
+Top Learners
+
+Certificates Generated
+
+🎓 4️⃣ USER FLOW (FRONTEND REACT)
+A. Browse Courses
+
+/courses
+
+Cards with title, instructor, duration, fee, enrolled count.
+
+Click → /courses/:id
+
+B. Course Detail Page
+
+Overview, content preview, test info, certificate preview.
+
+Enroll button → free or Razorpay checkout.
+
+After enrolling → redirect /dashboard/courses/:id
+
+C. Learning Dashboard (User Side)
+
+URL: /dashboard/courses/:id
+
+Tabs:
+
+Overview
+
+Lessons
+
+Tests
+
+Certificate
+
+🧠 “Lessons” Tab
+
+Sidebar: module list with icons for each type (📘 PDF / 🎬 Video / 🧮 Test).
+
+Main Area:
+
+Displays content.
+
+“Mark Complete” → updates progress.
+
+Auto-save current module (current_module_id) every few seconds.
+
+🧪 “Tests” Tab (per module)
+
+Test flow:
+
+Start Test → Countdown (10s)
+
+One question at a time:
+
+Question text + 4 options
+
+Timer visible
+
+Submit answer
+
+End of test → show:
+
+Correct/Incorrect count
+
+Percentage score
+
+Pass/Fail
+
+Save score → course_progress + test_responses
+
+Result example:
+
+“You answered 8/10 correctly (80%). You’ve passed this lesson test.”
+
+🕒 Resume Functionality
+
+When reloading, system fetches from:
+
+course_enrollments.current_module_id
+
+course_progress.completed flags
+→ Loads user where they left off.
+
+🧮 Scoring Logic
+
+Each test = (correct_answers / total) × 100
+
+Course overall = average of all test scores
+
+Must meet global threshold (e.g. 60%) for certificate
+
+D. Course Completion
+
+When:
+
+All modules marked completed
+
+All tests passed (≥ passing_score)
+Then:
+
+Auto-trigger certificate generation (JPEG + text overlay)
+
+Save certificate record
+
+Send via WhatsApp (BigTos API)
+
+E. Certificates Tab
+
+Shows course, completion date, certificate link
+
+Buttons: Download, Share via WhatsApp
+
+🧩 5️⃣ CERTIFICATE GENERATION LOGIC
+
+When course completion = 100%
+
+Pull template JPEG from entity_templates (type='course', entity_id=course_id)
+
+Render dynamic fields:
+
+Name
+
+Course Title
+
+Date
+
+Score / Grade
+
+Use Jimp or Sharp to overlay text
+
+Upload to Cloudinary
+
+Record in certificates
+
+Send via BigTos API
+
+Example Certificate Text Overlay Fields
+
+{
+  "name": { "x": 600, "y": 400, "size": 40 },
+  "course_title": { "x": 600, "y": 470, "size": 32 },
+  "date": { "x": 600, "y": 540, "size": 28 },
+  "score": { "x": 950, "y": 400, "size": 28 }
+}
+
+📡 6️⃣ API ENDPOINT SUMMARY
+Method	Endpoint	Description
+GET	/api/courses	List courses
+GET	/api/courses/:id	Get course + modules
+POST	/api/courses/:id/enroll	Enroll user
+GET	/api/modules/:id	Get module content
+GET	/api/modules/:id/test	Fetch questions
+POST	/api/tests/:id/submit	Submit answers
+PATCH	/api/courses/:id/progress	Mark lesson complete
+GET	/api/courses/:id/result	Fetch scores
+POST	/api/courses/:id/certificate	Generate & send certificate
+GET	/api/certificates/user/:id	Fetch all user certificates
+POST	/api/admin/tests/import	Excel upload (admin)
+GET	/api/admin/certificates	Certificate logs (admin)
+🧮 7️⃣ ADMIN CERTIFICATE DASHBOARD
+
+Columns:
+
+User	Course	Score	Date	Certificate	Sent
+Dr. Ishan Sharma	BCBR Course	85%	14 Oct 2025	[View]	✅
+
+Filter by Course / Date / Sent Status
+
+Resend Certificate button
+
+Export CSV / PDF
+
+📊 8️⃣ ANALYTICS & REPORTS
+
+User Dashboard:
+
+Progress % graph
+
+Test performance chart
+
+Certificate earned count
+
+Admin Dashboard:
+
+Course completion rate
+
+Average test scores
+
+Top-performing users
+
+Revenue by course
+
+🧠 9️⃣ TECHNOLOGICAL COMPONENTS
+Component	Library
+Backend Framework	Express + TypeScript
+Database ORM	Prisma + PostgreSQL
+Frontend	React + Tailwind
+File Upload	Multer + Cloudinary
+Excel Import	SheetJS (xlsx)
+PDF/Image Overlay	Jimp / Sharp
+Messaging	BigTos API
+Payment	Razorpay
+Charts	Chart.js
+✅ 10️⃣ OUTCOME
+
+Each Course is an end-to-end structured learning program:
+▶ Lessons (video/text/pdf)
+▶ Lesson Tests (MCQs from Excel or manual input)
+▶ Instant results per test
+▶ Auto progress tracking + resume
+▶ Final overall score
+▶ Auto certificate with JPEG background + user overlay
+▶ WhatsApp dispatch via BigTos
+▶ Admin logs and analytics dashboard

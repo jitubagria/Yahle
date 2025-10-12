@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import type { IncomingMessage } from "http";
 import { db } from "./db";
-import { users, doctorProfiles, courses, quizzes, quizQuestions, quizSessions, quizResponses, quizLeaderboard, certificates, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, enrollments, courseModules, courseProgress, courseCertificates, entityTemplates, insertUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertQuizSessionSchema, insertQuizResponseSchema, insertQuizLeaderboardSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema, insertCourseModuleSchema, insertCourseProgressSchema, insertCourseCertificateSchema, insertEntityTemplateSchema } from "@shared/schema";
+import { users, doctorProfiles, courses, quizzes, quizQuestions, quizSessions, quizResponses, quizLeaderboard, certificates, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, enrollments, courseModules, courseProgress, courseCertificates, entityTemplates, insertUserSchema, adminUpdateUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertQuizSessionSchema, insertQuizResponseSchema, insertQuizLeaderboardSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema, insertCourseModuleSchema, insertCourseProgressSchema, insertCourseCertificateSchema, insertEntityTemplateSchema } from "@shared/schema";
 import { eq, like, or, and, sql, inArray, desc } from "drizzle-orm";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { bigtosService } from "./bigtos";
@@ -1983,6 +1983,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Get admin users error:", error);
       res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  app.put("/api/admin/users/:id", requireAdmin, async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      
+      // Validate request body with Zod
+      const validated = adminUpdateUserSchema.parse(req.body);
+      
+      const updateData: any = {};
+      if (validated.role !== undefined) updateData.role = validated.role;
+      if (validated.isVerified !== undefined) updateData.isVerified = validated.isVerified;
+      if (validated.email !== undefined) {
+        updateData.email = validated.email === '' ? null : validated.email;
+      }
+      
+      const [updatedUser] = await db.update(users)
+        .set(updateData)
+        .where(eq(users.id, userId))
+        .returning();
+      
+      if (!updatedUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Update user error:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to update user" });
+    }
+  });
+
+  app.delete("/api/admin/users/:id", requireAdmin, async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      
+      // First get all enrollments for this user to delete related courseProgress
+      const userEnrollments = await db.select({ id: enrollments.id })
+        .from(enrollments)
+        .where(eq(enrollments.userId, userId));
+      
+      const enrollmentIds = userEnrollments.map(e => e.id);
+      
+      // Delete all related data first (cascade delete)
+      await db.delete(doctorProfiles).where(eq(doctorProfiles.userId, userId));
+      await db.delete(jobApplications).where(eq(jobApplications.userId, userId));
+      await db.delete(masterclassBookings).where(eq(masterclassBookings.userId, userId));
+      await db.delete(quizAttempts).where(eq(quizAttempts.userId, userId));
+      await db.delete(quizResponses).where(eq(quizResponses.userId, userId));
+      await db.delete(quizLeaderboard).where(eq(quizLeaderboard.userId, userId));
+      await db.delete(researchServiceRequests).where(eq(researchServiceRequests.userId, userId));
+      await db.delete(aiToolRequests).where(eq(aiToolRequests.userId, userId));
+      await db.delete(courseCertificates).where(eq(courseCertificates.userId, userId));
+      await db.delete(certificates).where(eq(certificates.userId, userId));
+      
+      // Delete courseProgress by enrollmentId
+      if (enrollmentIds.length > 0) {
+        await db.delete(courseProgress).where(inArray(courseProgress.enrollmentId, enrollmentIds));
+      }
+      
+      // Delete enrollments after courseProgress
+      await db.delete(enrollments).where(eq(enrollments.userId, userId));
+      
+      // Finally delete the user
+      const [deletedUser] = await db.delete(users)
+        .where(eq(users.id, userId))
+        .returning();
+      
+      if (!deletedUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      res.json({ success: true, message: "User and all associated data deleted successfully" });
+    } catch (error) {
+      console.error("Delete user error:", error);
+      res.status(500).json({ error: "Failed to delete user" });
     }
   });
 

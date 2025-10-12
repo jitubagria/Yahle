@@ -548,6 +548,12 @@ export const insertUserSchema = createInsertSchema(users).omit({
   updatedAt: true,
 });
 
+export const adminUpdateUserSchema = z.object({
+  role: z.enum(['admin', 'doctor', 'student', 'service_provider']).optional(),
+  email: z.string().email().optional().or(z.literal('')),
+  isVerified: z.boolean().optional(),
+});
+
 export const insertDoctorProfileSchema = createInsertSchema(doctorProfiles).omit({
   id: true,
   createdAt: true,
