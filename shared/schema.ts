@@ -740,7 +740,6 @@ export const insertSettingSchema = createInsertSchema(settings).omit({
 
 // Additional validation schemas for API endpoints
 export const quizSubmissionSchema = z.object({
-  userId: z.number(),
   score: z.number(),
   totalQuestions: z.number(),
   timeTaken: z.number().optional(),
