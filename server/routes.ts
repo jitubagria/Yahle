@@ -971,17 +971,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Generate new certificate
+      // Generate new certificate using certificate generation service
       const certificateNumber = `CERT-${Date.now()}-${user.id}-${courseId}`;
       
       let certificate;
       try {
+        // Get user info for certificate
+        const [userInfo] = await db.select()
+          .from(users)
+          .where(eq(users.id, user.id))
+          .limit(1);
+        
+        // Generate certificate image using certificate service
+        const { generateCertificate } = await import('./services/certificates');
+        const certificateUrl = await generateCertificate({
+          userId: user.id,
+          entityId: courseId,
+          entityType: 'course',
+          userName: userInfo?.email?.split('@')[0] || `User${user.id}`,
+          title: course.title,
+          completionDate: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+        });
+
         [certificate] = await db.insert(courseCertificates)
           .values({
             userId: user.id,
             courseId,
             certificateNumber,
-            certificateUrl: `/certificates/${certificateNumber}.pdf`, // Stub URL for now
+            certificateUrl: certificateUrl || `/certificates/${certificateNumber}.pdf`,
           })
           .returning();
 
@@ -1151,6 +1168,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
           certificateIssued: passed,
         })
         .returning();
+
+      // Generate certificate if passed
+      if (passed) {
+        try {
+          const [userInfo] = await db.select()
+            .from(users)
+            .where(eq(users.id, user.id))
+            .limit(1);
+          
+          const { generateCertificate } = await import('./services/certificates');
+          await generateCertificate({
+            userId: user.id,
+            entityId: quizId,
+            entityType: 'quiz',
+            userName: userInfo?.email?.split('@')[0] || `User${user.id}`,
+            title: quiz.title,
+            score: `${validated.score}%`,
+            completionDate: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+          });
+        } catch (certError) {
+          console.error('Failed to generate quiz certificate:', certError);
+        }
+      }
 
       res.json(attempt);
     } catch (error) {
@@ -1549,19 +1589,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/masterclasses/book", async (req, res) => {
+  app.post("/api/masterclasses/book", requireAuth, async (req, res) => {
     try {
-      const { masterclassId, userId } = req.body;
+      const user = getAuthenticatedUser(req);
+      const { masterclassId } = req.body;
       
-      if (!userId || !masterclassId) {
-        return res.status(400).json({ error: "masterclassId and userId are required" });
+      if (!masterclassId) {
+        return res.status(400).json({ error: "masterclassId is required" });
       }
 
       // Check for duplicate booking
       const [existingBooking] = await db.select()
         .from(masterclassBookings)
         .where(and(
-          eq(masterclassBookings.userId, userId),
+          eq(masterclassBookings.userId, user.id),
           eq(masterclassBookings.masterclassId, masterclassId)
         ))
         .limit(1);
@@ -1587,7 +1628,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const [booking] = await db.insert(masterclassBookings)
         .values({
-          userId,
+          userId: user.id,
           masterclassId,
         })
         .returning();
@@ -1595,6 +1636,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await db.update(masterclasses)
         .set({ currentParticipants: masterclass.currentParticipants + 1 })
         .where(eq(masterclasses.id, masterclassId));
+
+      // Generate certificate for masterclass attendance (booking = attendance in this system)
+      try {
+        const [userInfo] = await db.select()
+          .from(users)
+          .where(eq(users.id, user.id))
+          .limit(1);
+        
+        const { generateCertificate } = await import('./services/certificates');
+        await generateCertificate({
+          userId: user.id,
+          entityId: masterclassId,
+          entityType: 'masterclass',
+          userName: userInfo?.email?.split('@')[0] || `User${user.id}`,
+          title: masterclass.title,
+          completionDate: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+        });
+      } catch (certError) {
+        console.error('Failed to generate masterclass certificate:', certError);
+      }
 
       res.json({ success: true, booking });
     } catch (error) {

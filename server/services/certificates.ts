@@ -175,20 +175,24 @@ export async function generateCertificate(data: CertificateData): Promise<string
       })
       .returning();
 
-    // Send via WhatsApp (placeholder - will integrate with BigTos API)
+    // Send via WhatsApp using BigTos API
     const phoneNumber = await getUserPhone(data.userId);
-    if (phoneNumber && process.env.BIGTOS_API_KEY) {
+    if (phoneNumber) {
       const message = `🎓 Congratulations ${data.userName}! You've successfully completed ${data.title}. Your certificate is ready!`;
       
       try {
-        // TODO: Integrate with BigTos WhatsApp API
-        // await sendWhatsAppFile(phoneNumber, outputUrl, message);
-        console.log(`WhatsApp certificate would be sent to ${phoneNumber}`);
+        // Import BigTos service
+        const { bigtosService } = await import('../bigtos');
+        
+        // Send certificate image via WhatsApp
+        await bigtosService.sendTextImage(phoneNumber, message, outputUrl);
         
         // Update sent status
         await db.update(certificates)
           .set({ sentStatus: true, sentAt: new Date() })
           .where(eq(certificates.id, cert.id));
+        
+        console.log(`Certificate sent to ${phoneNumber} via WhatsApp`);
       } catch (error) {
         console.error('Failed to send WhatsApp certificate:', error);
       }
