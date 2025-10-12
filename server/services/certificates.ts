@@ -1,4 +1,4 @@
-import { Jimp } from 'jimp';
+import { Jimp, loadFont, HorizontalAlign } from 'jimp';
 import { db } from "../db";
 import { entityTemplates, certificates, users } from "../../shared/schema";
 import { eq, and } from "drizzle-orm";
@@ -30,6 +30,26 @@ interface TextPositions {
   [key: string]: TextPosition | undefined;
 }
 
+// Map size to nearest available font
+const getFontPath = (size: number): string => {
+  const baseDir = 'node_modules/@jimp/plugin-print/fonts/open-sans';
+  
+  if (size >= 128) return `${baseDir}/open-sans-128-black/open-sans-128-black.fnt`;
+  if (size >= 64) return `${baseDir}/open-sans-64-black/open-sans-64-black.fnt`;
+  if (size >= 32) return `${baseDir}/open-sans-32-black/open-sans-32-black.fnt`;
+  if (size >= 16) return `${baseDir}/open-sans-16-black/open-sans-16-black.fnt`;
+  if (size >= 12) return `${baseDir}/open-sans-12-black/open-sans-12-black.fnt`;
+  if (size >= 10) return `${baseDir}/open-sans-10-black/open-sans-10-black.fnt`;
+  return `${baseDir}/open-sans-8-black/open-sans-8-black.fnt`;
+};
+
+// Get alignment constant
+const getAlignment = (align?: 'left' | 'center' | 'right') => {
+  if (align === 'center') return HorizontalAlign.CENTER;
+  if (align === 'right') return HorizontalAlign.RIGHT;
+  return HorizontalAlign.LEFT;
+};
+
 export async function generateCertificate(data: CertificateData): Promise<string | null> {
   try {
     // Fetch template
@@ -53,44 +73,33 @@ export async function generateCertificate(data: CertificateData): Promise<string
     // Load background image
     const image = await Jimp.read(template.backgroundImage);
 
-    // Load font - using built-in Jimp fonts for now
-    // Map size to nearest Jimp font
-    const getFontForSize = (size: number) => {
-      if (size >= 64) return Jimp.FONT_SANS_64_BLACK;
-      if (size >= 32) return Jimp.FONT_SANS_32_BLACK;
-      if (size >= 16) return Jimp.FONT_SANS_16_BLACK;
-      return Jimp.FONT_SANS_8_BLACK;
-    };
-
     // Add text overlays
     if (positions.name && data.userName) {
-      const font = await Jimp.loadFont(getFontForSize(positions.name.size));
-      const maxWidth = image.bitmap.width - positions.name.x;
-      image.print(
+      const font = await loadFont(getFontPath(positions.name.size));
+      image.print({
         font,
-        positions.name.x,
-        positions.name.y,
-        {
+        x: positions.name.x,
+        y: positions.name.y,
+        text: {
           text: data.userName,
-          alignmentX: positions.name.align === 'center' ? Jimp.HORIZONTAL_ALIGN_CENTER : Jimp.HORIZONTAL_ALIGN_LEFT,
+          alignmentX: getAlignment(positions.name.align),
         },
-        maxWidth
-      );
+        maxWidth: image.bitmap.width - positions.name.x,
+      });
     }
 
     if (positions.title && data.title) {
-      const font = await Jimp.loadFont(getFontForSize(positions.title.size));
-      const maxWidth = image.bitmap.width - positions.title.x;
-      image.print(
+      const font = await loadFont(getFontPath(positions.title.size));
+      image.print({
         font,
-        positions.title.x,
-        positions.title.y,
-        {
+        x: positions.title.x,
+        y: positions.title.y,
+        text: {
           text: data.title,
-          alignmentX: positions.title.align === 'center' ? Jimp.HORIZONTAL_ALIGN_CENTER : Jimp.HORIZONTAL_ALIGN_LEFT,
+          alignmentX: getAlignment(positions.title.align),
         },
-        maxWidth
-      );
+        maxWidth: image.bitmap.width - positions.title.x,
+      });
     }
 
     if (positions.date) {
@@ -99,55 +108,52 @@ export async function generateCertificate(data: CertificateData): Promise<string
         month: 'long', 
         day: 'numeric' 
       });
-      const font = await Jimp.loadFont(getFontForSize(positions.date.size));
-      const maxWidth = image.bitmap.width - positions.date.x;
-      image.print(
+      const font = await loadFont(getFontPath(positions.date.size));
+      image.print({
         font,
-        positions.date.x,
-        positions.date.y,
-        {
+        x: positions.date.x,
+        y: positions.date.y,
+        text: {
           text: dateStr,
-          alignmentX: positions.date.align === 'center' ? Jimp.HORIZONTAL_ALIGN_CENTER : Jimp.HORIZONTAL_ALIGN_LEFT,
+          alignmentX: getAlignment(positions.date.align),
         },
-        maxWidth
-      );
+        maxWidth: image.bitmap.width - positions.date.x,
+      });
     }
 
     if (positions.score && data.score) {
-      const font = await Jimp.loadFont(getFontForSize(positions.score.size));
-      const maxWidth = image.bitmap.width - positions.score.x;
-      image.print(
+      const font = await loadFont(getFontPath(positions.score.size));
+      image.print({
         font,
-        positions.score.x,
-        positions.score.y,
-        {
+        x: positions.score.x,
+        y: positions.score.y,
+        text: {
           text: `Score: ${data.score}`,
-          alignmentX: positions.score.align === 'center' ? Jimp.HORIZONTAL_ALIGN_CENTER : Jimp.HORIZONTAL_ALIGN_LEFT,
+          alignmentX: getAlignment(positions.score.align),
         },
-        maxWidth
-      );
+        maxWidth: image.bitmap.width - positions.score.x,
+      });
     }
 
     if (positions.rank && data.rank) {
-      const font = await Jimp.loadFont(getFontForSize(positions.rank.size));
-      const maxWidth = image.bitmap.width - positions.rank.x;
-      image.print(
+      const font = await loadFont(getFontPath(positions.rank.size));
+      image.print({
         font,
-        positions.rank.x,
-        positions.rank.y,
-        {
+        x: positions.rank.x,
+        y: positions.rank.y,
+        text: {
           text: `Rank: ${data.rank}`,
-          alignmentX: positions.rank.align === 'center' ? Jimp.HORIZONTAL_ALIGN_CENTER : Jimp.HORIZONTAL_ALIGN_LEFT,
+          alignmentX: getAlignment(positions.rank.align),
         },
-        maxWidth
-      );
+        maxWidth: image.bitmap.width - positions.rank.x,
+      });
     }
 
     // Generate unique filename
     const filename = `certificate_${data.entityType}_${data.userId}_${Date.now()}.jpg`;
     
     // Convert to buffer
-    const buffer = await image.getBufferAsync(Jimp.MIME_JPEG);
+    const buffer = await image.getBuffer('image/jpeg');
     
     // For now, convert buffer to base64 data URL (later can upload to cloud storage)
     const base64 = buffer.toString('base64');
