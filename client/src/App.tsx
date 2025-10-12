@@ -22,6 +22,8 @@ import AITools from "@/pages/AITools";
 import DiagnosisHelper from "@/pages/DiagnosisHelper";
 import MedicalStatistics from "@/pages/MedicalStatistics";
 import LiteratureSearch from "@/pages/LiteratureSearch";
+import MedicalVoices from "@/pages/MedicalVoices";
+import MedicalVoiceDetail from "@/pages/MedicalVoiceDetail";
 import ResearchServices from "@/pages/ResearchServices";
 import Masterclasses from "@/pages/Masterclasses";
 import MasterclassDetail from "@/pages/MasterclassDetail";
@@ -43,6 +45,7 @@ import AdminUsers from "@/pages/admin/AdminUsers";
 import AdminMessaging from "@/pages/admin/AdminMessaging";
 import AdminPayments from "@/pages/admin/AdminPayments";
 import AdminSettings from "@/pages/admin/AdminSettings";
+import AdminVoices from "@/pages/admin/AdminVoices";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -69,6 +72,8 @@ function Router() {
       <Route path="/ai-tools/diagnosis-helper" component={DiagnosisHelper} />
       <Route path="/ai-tools/medical-statistics" component={MedicalStatistics} />
       <Route path="/ai-tools/literature-search" component={LiteratureSearch} />
+      <Route path="/medical-voices" component={MedicalVoices} />
+      <Route path="/voices/:slug" component={MedicalVoiceDetail} />
       <Route path="/research-services" component={ResearchServices} />
       <Route path="/masterclasses" component={Masterclasses} />
       <Route path="/masterclass/:id" component={MasterclassDetail} />
@@ -87,6 +92,7 @@ function Router() {
       <Route path="/admin/messaging" component={AdminMessaging} />
       <Route path="/admin/payments" component={AdminPayments} />
       <Route path="/admin/settings" component={AdminSettings} />
+      <Route path="/admin/voices" component={AdminVoices} />
       <Route component={NotFound} />
     </Switch>
   );

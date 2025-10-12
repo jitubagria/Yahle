@@ -69,6 +69,14 @@ export class BigtosService {
   }
 
   /**
+   * Sends Medical Voices update notification
+   */
+  async sendVoiceUpdate(mobile: string, userName: string, voiceTitle: string, updateTitle: string): Promise<any> {
+    const message = `*Medical Voices Update*\n\nHello ${userName},\n\nNew update on *${voiceTitle}*:\n\n*${updateTitle}*\n\nView details on DocsUniverse Medical Voices.`;
+    return this.sendText(mobile, message);
+  }
+
+  /**
    * Private helper to handle the API request to BigTos
    */
   private async sendMessage(mobile: string, message: string, type: 'Text' | 'Image', imageUrl?: string): Promise<any> {

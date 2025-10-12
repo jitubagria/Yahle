@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import type { IncomingMessage } from "http";
 import { db } from "./db";
-import { users, doctorProfiles, courses, quizzes, quizQuestions, quizSessions, quizResponses, quizLeaderboard, certificates, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, enrollments, courseModules, courseProgress, courseCertificates, entityTemplates, bigtosMessages, settings, insertUserSchema, adminUpdateUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertQuizSessionSchema, insertQuizResponseSchema, insertQuizLeaderboardSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema, insertCourseModuleSchema, insertCourseProgressSchema, insertCourseCertificateSchema, insertEntityTemplateSchema, insertSettingSchema } from "@shared/schema";
+import { users, doctorProfiles, courses, quizzes, quizQuestions, quizSessions, quizResponses, quizLeaderboard, certificates, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, enrollments, courseModules, courseProgress, courseCertificates, entityTemplates, bigtosMessages, settings, medicalVoices, medicalVoiceSupporters, medicalVoiceUpdates, medicalVoiceContacts, medicalVoiceGatheringJoins, insertUserSchema, adminUpdateUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertQuizSessionSchema, insertQuizResponseSchema, insertQuizLeaderboardSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema, insertCourseModuleSchema, insertCourseProgressSchema, insertCourseCertificateSchema, insertEntityTemplateSchema, insertSettingSchema, insertMedicalVoiceSchema, insertMedicalVoiceSupporterSchema, insertMedicalVoiceUpdateSchema, insertMedicalVoiceContactSchema, insertMedicalVoiceGatheringJoinSchema } from "@shared/schema";
 import { eq, like, or, and, sql, inArray, desc } from "drizzle-orm";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { bigtosService as bigtos } from "./bigtos";
@@ -2419,6 +2419,628 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Get doctor hospitals error:", error);
       res.status(500).json({ error: "Failed to fetch doctor hospitals" });
+    }
+  });
+
+  // ===== MEDICAL VOICES ROUTES =====
+  
+  // Helper function to generate slug from title
+  function generateSlug(title: string): string {
+    return title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+  }
+
+  // Public: Get all voices (with filters)
+  app.get("/api/voices", async (req, res) => {
+    try {
+      const { status = 'active', category, q, page = '1', limit = '12' } = req.query;
+      const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+
+      // Build conditions array, filtering out undefined
+      const conditions = [
+        eq(medicalVoices.visibility, 'public'),
+        status ? eq(medicalVoices.status, status as any) : null,
+        category ? eq(medicalVoices.category, category as string) : null,
+        q ? or(
+          like(medicalVoices.title, `%${q}%`),
+          like(medicalVoices.shortDescription, `%${q}%`)
+        ) : null
+      ].filter(Boolean);
+
+      let query = db.select().from(medicalVoices)
+        .where(and(...conditions))
+        .orderBy(desc(medicalVoices.createdAt))
+        .limit(parseInt(limit as string))
+        .offset(offset);
+
+      const voices = await query;
+      
+      // Get total count for pagination
+      const countConditions = [
+        eq(medicalVoices.visibility, 'public'),
+        status ? eq(medicalVoices.status, status as any) : null,
+        category ? eq(medicalVoices.category, category as string) : null
+      ].filter(Boolean);
+
+      const [countResult] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(medicalVoices)
+        .where(and(...countConditions));
+
+      res.json({
+        voices,
+        total: countResult.count,
+        page: parseInt(page as string),
+        limit: parseInt(limit as string),
+      });
+    } catch (error) {
+      console.error("Get voices error:", error);
+      res.status(500).json({ error: "Failed to fetch voices" });
+    }
+  });
+
+  // Public: Get voice by slug
+  app.get("/api/voices/:slug", async (req, res) => {
+    try {
+      const { slug } = req.params;
+      
+      const [voice] = await db.select()
+        .from(medicalVoices)
+        .where(eq(medicalVoices.slug, slug))
+        .limit(1);
+
+      if (!voice) {
+        return res.status(404).json({ error: "Voice not found" });
+      }
+
+      // Get visible contacts
+      const contacts = await db.select()
+        .from(medicalVoiceContacts)
+        .where(
+          and(
+            eq(medicalVoiceContacts.voiceId, voice.id),
+            eq(medicalVoiceContacts.visible, true)
+          )
+        )
+        .orderBy(desc(medicalVoiceContacts.isPrimary));
+
+      // Get recent updates
+      const updates = await db.select()
+        .from(medicalVoiceUpdates)
+        .where(eq(medicalVoiceUpdates.voiceId, voice.id))
+        .orderBy(desc(medicalVoiceUpdates.createdAt))
+        .limit(5);
+
+      // Check if user is supporting (if authenticated)
+      let isSupporting = false;
+      let hasJoinedGathering = false;
+      let gatheringJoinStatus = null;
+      
+      if (req.session.userId) {
+        const [supporter] = await db.select()
+          .from(medicalVoiceSupporters)
+          .where(
+            and(
+              eq(medicalVoiceSupporters.voiceId, voice.id),
+              eq(medicalVoiceSupporters.userId, req.session.userId)
+            )
+          )
+          .limit(1);
+        
+        isSupporting = !!supporter;
+
+        if (voice.hasGathering) {
+          const [gatheringJoin] = await db.select()
+            .from(medicalVoiceGatheringJoins)
+            .where(
+              and(
+                eq(medicalVoiceGatheringJoins.voiceId, voice.id),
+                eq(medicalVoiceGatheringJoins.userId, req.session.userId)
+              )
+            )
+            .limit(1);
+          
+          hasJoinedGathering = !!gatheringJoin;
+          gatheringJoinStatus = gatheringJoin?.status || null;
+        }
+      }
+
+      res.json({
+        voice,
+        contacts,
+        updates,
+        isSupporting,
+        hasJoinedGathering,
+        gatheringJoinStatus,
+      });
+    } catch (error) {
+      console.error("Get voice error:", error);
+      res.status(500).json({ error: "Failed to fetch voice" });
+    }
+  });
+
+  // Public: Get voice updates
+  app.get("/api/voices/:id/updates", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { page = '1', limit = '10' } = req.query;
+      const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+
+      const updates = await db.select()
+        .from(medicalVoiceUpdates)
+        .where(eq(medicalVoiceUpdates.voiceId, parseInt(id)))
+        .orderBy(desc(medicalVoiceUpdates.createdAt))
+        .limit(parseInt(limit as string))
+        .offset(offset);
+
+      res.json(updates);
+    } catch (error) {
+      console.error("Get voice updates error:", error);
+      res.status(500).json({ error: "Failed to fetch updates" });
+    }
+  });
+
+  // Authenticated: Support a voice
+  app.post("/api/voices/:id/support", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { motivationNote } = req.body;
+      const userId = req.session.userId!;
+
+      // Check if already supporting
+      const [existing] = await db.select()
+        .from(medicalVoiceSupporters)
+        .where(
+          and(
+            eq(medicalVoiceSupporters.voiceId, parseInt(id)),
+            eq(medicalVoiceSupporters.userId, userId)
+          )
+        )
+        .limit(1);
+
+      if (existing) {
+        return res.status(400).json({ error: "Already supporting this voice" });
+      }
+
+      // Add support
+      const [supporter] = await db.insert(medicalVoiceSupporters)
+        .values({
+          voiceId: parseInt(id),
+          userId,
+          motivationNote,
+        })
+        .returning();
+
+      // Increment supporters count
+      await db.update(medicalVoices)
+        .set({ 
+          supportersCount: sql`${medicalVoices.supportersCount} + 1` 
+        })
+        .where(eq(medicalVoices.id, parseInt(id)));
+
+      res.json({ success: true, supporter });
+    } catch (error) {
+      console.error("Support voice error:", error);
+      res.status(500).json({ error: "Failed to support voice" });
+    }
+  });
+
+  // Authenticated: Withdraw support
+  app.delete("/api/voices/:id/support", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.session.userId!;
+
+      const deleted = await db.delete(medicalVoiceSupporters)
+        .where(
+          and(
+            eq(medicalVoiceSupporters.voiceId, parseInt(id)),
+            eq(medicalVoiceSupporters.userId, userId)
+          )
+        )
+        .returning();
+
+      if (deleted.length > 0) {
+        // Decrement supporters count
+        await db.update(medicalVoices)
+          .set({ 
+            supportersCount: sql`GREATEST(${medicalVoices.supportersCount} - 1, 0)` 
+          })
+          .where(eq(medicalVoices.id, parseInt(id)));
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Withdraw support error:", error);
+      res.status(500).json({ error: "Failed to withdraw support" });
+    }
+  });
+
+  // Authenticated: Join gathering
+  app.post("/api/voices/:id/gathering/join", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status = 'interested', remarks } = req.body;
+      const userId = req.session.userId!;
+
+      // Check if voice has gathering
+      const [voice] = await db.select()
+        .from(medicalVoices)
+        .where(eq(medicalVoices.id, parseInt(id)))
+        .limit(1);
+
+      if (!voice?.hasGathering) {
+        return res.status(400).json({ error: "This voice has no gathering" });
+      }
+
+      // Check if already joined
+      const [existing] = await db.select()
+        .from(medicalVoiceGatheringJoins)
+        .where(
+          and(
+            eq(medicalVoiceGatheringJoins.voiceId, parseInt(id)),
+            eq(medicalVoiceGatheringJoins.userId, userId)
+          )
+        )
+        .limit(1);
+
+      if (existing) {
+        // Update existing join
+        const [updated] = await db.update(medicalVoiceGatheringJoins)
+          .set({ status, remarks })
+          .where(eq(medicalVoiceGatheringJoins.id, existing.id))
+          .returning();
+        
+        return res.json({ success: true, join: updated });
+      }
+
+      // Create new join
+      const [join] = await db.insert(medicalVoiceGatheringJoins)
+        .values({
+          voiceId: parseInt(id),
+          userId,
+          status,
+          remarks,
+        })
+        .returning();
+
+      res.json({ success: true, join });
+    } catch (error) {
+      console.error("Join gathering error:", error);
+      res.status(500).json({ error: "Failed to join gathering" });
+    }
+  });
+
+  // Authenticated: Withdraw from gathering
+  app.delete("/api/voices/:id/gathering/join", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.session.userId!;
+
+      await db.delete(medicalVoiceGatheringJoins)
+        .where(
+          and(
+            eq(medicalVoiceGatheringJoins.voiceId, parseInt(id)),
+            eq(medicalVoiceGatheringJoins.userId, userId)
+          )
+        );
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Withdraw from gathering error:", error);
+      res.status(500).json({ error: "Failed to withdraw from gathering" });
+    }
+  });
+
+  // Authenticated: Get my supported voices
+  app.get("/api/me/voices", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session.userId!;
+
+      const supportedVoices = await db
+        .select({
+          voice: medicalVoices,
+          supporter: medicalVoiceSupporters,
+        })
+        .from(medicalVoiceSupporters)
+        .innerJoin(medicalVoices, eq(medicalVoiceSupporters.voiceId, medicalVoices.id))
+        .where(eq(medicalVoiceSupporters.userId, userId))
+        .orderBy(desc(medicalVoiceSupporters.joinedAt));
+
+      res.json(supportedVoices);
+    } catch (error) {
+      console.error("Get my voices error:", error);
+      res.status(500).json({ error: "Failed to fetch supported voices" });
+    }
+  });
+
+  // Admin: Create voice
+  app.post("/api/admin/voices", requireAdmin, async (req, res) => {
+    try {
+      const data = insertMedicalVoiceSchema.parse(req.body);
+      const userId = req.session.userId!;
+
+      // Generate slug if not provided
+      const slug = data.slug || generateSlug(data.title);
+
+      const [voice] = await db.insert(medicalVoices)
+        .values({
+          ...data,
+          slug,
+          creatorId: userId,
+        })
+        .returning();
+
+      res.json(voice);
+    } catch (error) {
+      console.error("Create voice error:", error);
+      res.status(500).json({ error: "Failed to create voice" });
+    }
+  });
+
+  // Admin: Update voice
+  app.patch("/api/admin/voices/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const data = req.body;
+
+      // If title is updated, regenerate slug
+      if (data.title && !data.slug) {
+        data.slug = generateSlug(data.title);
+      }
+
+      const [voice] = await db.update(medicalVoices)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(medicalVoices.id, parseInt(id)))
+        .returning();
+
+      res.json(voice);
+    } catch (error) {
+      console.error("Update voice error:", error);
+      res.status(500).json({ error: "Failed to update voice" });
+    }
+  });
+
+  // Admin: Delete voice
+  app.delete("/api/admin/voices/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      await db.delete(medicalVoices)
+        .where(eq(medicalVoices.id, parseInt(id)));
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete voice error:", error);
+      res.status(500).json({ error: "Failed to delete voice" });
+    }
+  });
+
+  // Admin: Create update
+  app.post("/api/admin/voices/:id/updates", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { updateTitle, updateBody, notifySupporters } = req.body;
+
+      const [update] = await db.insert(medicalVoiceUpdates)
+        .values({
+          voiceId: parseInt(id),
+          updateTitle,
+          updateBody,
+          notifySupporters,
+        })
+        .returning();
+
+      // If notify supporters, send WhatsApp messages
+      if (notifySupporters) {
+        const supporters = await db
+          .select({
+            phone: users.phone,
+            firstName: doctorProfiles.firstName,
+          })
+          .from(medicalVoiceSupporters)
+          .innerJoin(users, eq(medicalVoiceSupporters.userId, users.id))
+          .leftJoin(doctorProfiles, eq(users.id, doctorProfiles.userId))
+          .where(eq(medicalVoiceSupporters.voiceId, parseInt(id)));
+
+        // Get voice title
+        const [voice] = await db.select()
+          .from(medicalVoices)
+          .where(eq(medicalVoices.id, parseInt(id)))
+          .limit(1);
+
+        // Send notifications (in background)
+        for (const supporter of supporters) {
+          bigtos.sendVoiceUpdate(
+            supporter.phone,
+            supporter.firstName || 'Supporter',
+            voice.title,
+            updateTitle
+          ).catch(err => console.error('Failed to send voice update:', err));
+        }
+      }
+
+      res.json(update);
+    } catch (error) {
+      console.error("Create update error:", error);
+      res.status(500).json({ error: "Failed to create update" });
+    }
+  });
+
+  // Admin: Get voice supporters
+  app.get("/api/admin/voices/:id/supporters", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { page = '1', limit = '50' } = req.query;
+      const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+
+      const supporters = await db
+        .select({
+          supporter: medicalVoiceSupporters,
+          user: users,
+          profile: doctorProfiles,
+        })
+        .from(medicalVoiceSupporters)
+        .innerJoin(users, eq(medicalVoiceSupporters.userId, users.id))
+        .leftJoin(doctorProfiles, eq(users.id, doctorProfiles.userId))
+        .where(eq(medicalVoiceSupporters.voiceId, parseInt(id)))
+        .orderBy(desc(medicalVoiceSupporters.joinedAt))
+        .limit(parseInt(limit as string))
+        .offset(offset);
+
+      const [countResult] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(medicalVoiceSupporters)
+        .where(eq(medicalVoiceSupporters.voiceId, parseInt(id)));
+
+      res.json({
+        supporters,
+        total: countResult.count,
+      });
+    } catch (error) {
+      console.error("Get supporters error:", error);
+      res.status(500).json({ error: "Failed to fetch supporters" });
+    }
+  });
+
+  // Admin: Manage contacts
+  app.post("/api/admin/voices/:id/contacts", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const data = insertMedicalVoiceContactSchema.parse(req.body);
+
+      const [contact] = await db.insert(medicalVoiceContacts)
+        .values({
+          ...data,
+          voiceId: parseInt(id),
+        })
+        .returning();
+
+      res.json(contact);
+    } catch (error) {
+      console.error("Create contact error:", error);
+      res.status(500).json({ error: "Failed to create contact" });
+    }
+  });
+
+  app.patch("/api/admin/voices/:voiceId/contacts/:contactId", requireAdmin, async (req, res) => {
+    try {
+      const { contactId } = req.params;
+      const data = req.body;
+
+      const [contact] = await db.update(medicalVoiceContacts)
+        .set(data)
+        .where(eq(medicalVoiceContacts.id, parseInt(contactId)))
+        .returning();
+
+      res.json(contact);
+    } catch (error) {
+      console.error("Update contact error:", error);
+      res.status(500).json({ error: "Failed to update contact" });
+    }
+  });
+
+  app.delete("/api/admin/voices/:voiceId/contacts/:contactId", requireAdmin, async (req, res) => {
+    try {
+      const { contactId } = req.params;
+
+      await db.delete(medicalVoiceContacts)
+        .where(eq(medicalVoiceContacts.id, parseInt(contactId)));
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete contact error:", error);
+      res.status(500).json({ error: "Failed to delete contact" });
+    }
+  });
+
+  // Admin: Get all voices (including private/draft)
+  app.get("/api/admin/voices", requireAdmin, async (req, res) => {
+    try {
+      const { status, category, q, page = '1', limit = '20' } = req.query;
+      const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+
+      // Build conditions array, filtering out undefined
+      const conditions = [
+        status ? eq(medicalVoices.status, status as any) : null,
+        category ? eq(medicalVoices.category, category as string) : null,
+        q ? or(
+          like(medicalVoices.title, `%${q}%`),
+          like(medicalVoices.shortDescription, `%${q}%`)
+        ) : null
+      ].filter(Boolean);
+
+      const voices = await db.select()
+        .from(medicalVoices)
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(desc(medicalVoices.createdAt))
+        .limit(parseInt(limit as string))
+        .offset(offset);
+
+      const countConditions = [
+        status ? eq(medicalVoices.status, status as any) : null,
+        category ? eq(medicalVoices.category, category as string) : null
+      ].filter(Boolean);
+
+      const [countResult] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(medicalVoices)
+        .where(countConditions.length > 0 ? and(...countConditions) : undefined);
+
+      res.json({
+        voices,
+        total: countResult.count,
+      });
+    } catch (error) {
+      console.error("Get admin voices error:", error);
+      res.status(500).json({ error: "Failed to fetch voices" });
+    }
+  });
+
+  // Admin: Get analytics
+  app.get("/api/admin/voices/analytics", requireAdmin, async (req, res) => {
+    try {
+      // Total voices by status
+      const voicesByStatus = await db
+        .select({
+          status: medicalVoices.status,
+          count: sql<number>`count(*)`,
+        })
+        .from(medicalVoices)
+        .groupBy(medicalVoices.status);
+
+      // Total supporters
+      const [totalSupporters] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(medicalVoiceSupporters);
+
+      // Top voices by supporters
+      const topVoices = await db
+        .select()
+        .from(medicalVoices)
+        .orderBy(desc(medicalVoices.supportersCount))
+        .limit(5);
+
+      // Category distribution
+      const byCategory = await db
+        .select({
+          category: medicalVoices.category,
+          count: sql<number>`count(*)`,
+        })
+        .from(medicalVoices)
+        .groupBy(medicalVoices.category);
+
+      res.json({
+        voicesByStatus,
+        totalSupporters: totalSupporters.count,
+        topVoices,
+        byCategory,
+      });
+    } catch (error) {
+      console.error("Get analytics error:", error);
+      res.status(500).json({ error: "Failed to fetch analytics" });
     }
   });
 

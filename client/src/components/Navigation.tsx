@@ -38,6 +38,7 @@ export default function Navigation() {
     { href: '/quizzes', label: 'Quizzes' },
     { href: '/jobs', label: 'Jobs' },
     { href: '/ai-tools', label: 'AI Tools' },
+    { href: '/medical-voices', label: 'Medical Voices' },
     { href: '/research-services', label: 'Research' },
   ];
 

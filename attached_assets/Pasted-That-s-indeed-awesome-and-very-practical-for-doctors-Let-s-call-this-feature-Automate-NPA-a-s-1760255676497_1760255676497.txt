@@ -1,0 +1,175 @@
+That’s indeed awesome — and very practical for doctors!
+Let’s call this feature “Automate NPA” — a smart AI Tool under DocsUniverse’s AI Utilities section. Below is a full, production-ready plan covering frontend (UI), backend (cron logic + templates), and admin dashboard for managing templates, users, and automation cycles.
+
+🧠 Feature Name: Automate NPA (Non-Practicing Allowance Certificate Generator)
+🎯 Objective
+
+Automatically generate and email personalized Non-Practicing Allowance certificates (like the one you showed) every month to opted-in doctors, based on preset templates and their saved profile data.
+
+🏗️ Architecture Overview
+1. Database Structure
+
+Table: npa_automation
+
+Field	Type	Description
+id	INT (PK)	Unique ID
+doctor_id	INT	FK to wp_doctor_profiles
+month	VARCHAR(20)	Month for which certificate is generated (e.g., "October 2025")
+generated_pdf	VARCHAR(255)	File path or URL of generated certificate
+status	ENUM('pending','sent','error')	Automation status
+sent_date	DATETIME	When it was emailed
+next_schedule	DATETIME	Next scheduled run for this user
+last_error	TEXT	If sending failed
+
+Table: npa_templates
+
+Field	Type	Description
+id	INT	Primary Key
+title	VARCHAR(100)	e.g., “Standard NPA Certificate”
+html_template	LONGTEXT	HTML content with placeholders ({{name}}, {{designation}}, etc.)
+active	BOOLEAN	Active template flag
+2. Backend Logic (WP Plugin or Node Microservice)
+a. Data Flow
+
+On signup or dashboard → Doctor opts into “Automate NPA”.
+
+Their data (Name, Designation, Posting, District) auto-mapped from wp_doctor_profiles.
+
+CRON runs every 1st of month at 00:05 AM.
+
+Backend:
+
+Fetches template HTML.
+
+Replaces placeholders:
+
+{{month}} → October 2025
+{{date}} → 1 November 2025
+{{name}} → Dr. Jitendra Kumar Bagria
+{{designation}} → Medical Officer
+{{place}} → Primary Health Center Goner, Sanganer
+{{district}} → Jaipur 2
+
+
+Converts HTML → A4 PDF.
+
+Saves PDF file (e.g., /uploads/npa/2025_10_Jitendra_Bagria.pdf).
+
+Sends email (and optionally WhatsApp) using Bigtos API (or SMTP).
+
+Logs status in npa_automation.
+
+b. CRON & Scheduling
+
+Use WP-Cron or real CRON via server:
+
+Runs on 1st day of each month (configurable)
+
+Supports manual trigger from Admin Panel.
+
+Option for doctors to pause automation or manually regenerate.
+
+3. Admin Dashboard
+a. Menu:
+
+DocsUniverse → Automate NPA
+
+Submenus:
+
+Manage Templates
+
+View Logs
+
+Send History
+
+Doctor Opt-Ins
+
+b. Features:
+
+Upload new HTML templates with placeholders.
+
+Preview generated PDF before sending.
+
+View logs (Success/Failed deliveries).
+
+Send test certificate to any email.
+
+Re-send or regenerate certificates manually.
+
+4. Frontend (User UI)
+a. Page: /ai-tools/automate-npa
+
+Sections:
+
+Header: “Never Miss Your NPA Certificate Again 🚀”
+
+How it Works:
+
+Connects your DocsUniverse profile.
+
+Auto-generates every month.
+
+Delivered to your inbox.
+
+Form:
+
+✅ Checkbox: “I want to receive my NPA Certificate monthly.”
+
+Dropdown: Preferred day (1st, 2nd, 3rd)
+
+Email confirmation.
+
+Preview Template: Live preview of current month’s certificate.
+
+Download Sample: Button to test current template.
+
+Status Card: “Your next certificate will be sent on November 1st.”
+
+5. Template Engine
+
+Use Twig / Mustache / Handlebars for placeholder substitution.
+
+Store templates in DB with version control.
+
+Example placeholders:
+
+{{name}}, {{designation}}, {{month}}, {{district}}, etc.
+
+6. Automation Flow Diagram
+[Doctor Profile Data] 
+       ↓
+ [CRON Trigger on 1st]
+       ↓
+ [Template Fetch + Replace Placeholders]
+       ↓
+ [Generate PDF → Upload]
+       ↓
+ [Send via Bigtos API]
+       ↓
+ [Update Logs + Notify User]
+
+7. Future Expansion
+
+Add signature image upload for automatic stamping.
+
+Allow hospitals to bulk-generate NPA certificates for all doctors.
+
+Add WhatsApp delivery via Bigtos API.
+
+Integration with Attendance system (auto verify submission).
+
+8. Tech Stack Recommendation
+
+Backend: WordPress Plugin (PHP) or Node.js microservice connected to WP via REST API.
+
+PDF Generation:
+
+PHP: dompdf / mPDF
+
+Node: puppeteer (HTML → PDF)
+
+Email/WhatsApp:
+
+Bigtos API or SMTP fallback.
+
+Scheduler: WP Cron or system-level crontab.
