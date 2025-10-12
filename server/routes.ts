@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import type { IncomingMessage } from "http";
 import { db } from "./db";
-import { users, doctorProfiles, courses, quizzes, quizQuestions, quizSessions, quizResponses, quizLeaderboard, certificates, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, enrollments, courseModules, courseProgress, courseCertificates, entityTemplates, bigtosMessages, insertUserSchema, adminUpdateUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertQuizSessionSchema, insertQuizResponseSchema, insertQuizLeaderboardSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema, insertCourseModuleSchema, insertCourseProgressSchema, insertCourseCertificateSchema, insertEntityTemplateSchema } from "@shared/schema";
+import { users, doctorProfiles, courses, quizzes, quizQuestions, quizSessions, quizResponses, quizLeaderboard, certificates, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, enrollments, courseModules, courseProgress, courseCertificates, entityTemplates, bigtosMessages, settings, insertUserSchema, adminUpdateUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertQuizSessionSchema, insertQuizResponseSchema, insertQuizLeaderboardSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema, insertCourseModuleSchema, insertCourseProgressSchema, insertCourseCertificateSchema, insertEntityTemplateSchema, insertSettingSchema } from "@shared/schema";
 import { eq, like, or, and, sql, inArray, desc } from "drizzle-orm";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { bigtosService as bigtos } from "./bigtos";
@@ -2250,6 +2250,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Get message logs error:", error);
       res.status(500).json({ error: "Failed to fetch message logs" });
+    }
+  });
+
+  // ===== SETTINGS ROUTES =====
+  
+  // Get all settings (grouped by category)
+  app.get("/api/admin/settings", requireAdmin, async (req, res) => {
+    try {
+      const allSettings = await db.select().from(settings);
+      
+      // Group by category
+      const grouped = allSettings.reduce((acc, setting) => {
+        if (!acc[setting.category]) {
+          acc[setting.category] = [];
+        }
+        acc[setting.category].push(setting);
+        return acc;
+      }, {} as Record<string, typeof allSettings>);
+      
+      res.json(grouped);
+    } catch (error) {
+      console.error("Get settings error:", error);
+      res.status(500).json({ error: "Failed to fetch settings" });
+    }
+  });
+  
+  // Update a setting
+  app.patch("/api/admin/settings/:key", requireAdmin, async (req, res) => {
+    try {
+      const { key } = req.params;
+      const { value } = req.body;
+      
+      if (!value) {
+        return res.status(400).json({ error: "Value is required" });
+      }
+      
+      const updated = await db
+        .update(settings)
+        .set({ value, updatedAt: new Date() })
+        .where(eq(settings.key, key))
+        .returning();
+      
+      if (updated.length === 0) {
+        return res.status(404).json({ error: "Setting not found" });
+      }
+      
+      res.json(updated[0]);
+    } catch (error) {
+      console.error("Update setting error:", error);
+      res.status(500).json({ error: "Failed to update setting" });
+    }
+  });
+  
+  // Create a setting
+  app.post("/api/admin/settings", requireAdmin, async (req, res) => {
+    try {
+      const result = insertSettingSchema.safeParse(req.body);
+      
+      if (!result.success) {
+        return res.status(400).json({ error: result.error.message });
+      }
+      
+      const created = await db.insert(settings).values(result.data).returning();
+      res.status(201).json(created[0]);
+    } catch (error) {
+      console.error("Create setting error:", error);
+      res.status(500).json({ error: "Failed to create setting" });
     }
   });
 

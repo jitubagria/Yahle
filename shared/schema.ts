@@ -393,6 +393,16 @@ export const bigtosMessages = pgTable("bigtos_messages", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Platform settings table
+export const settings = pgTable("settings", {
+  id: serial("id").primaryKey(),
+  key: varchar("key", { length: 100 }).notNull().unique(),
+  value: text("value").notNull(),
+  category: varchar("category", { length: 50 }).notNull(), // platform, whatsapp, certificates, payments, notifications
+  description: text("description"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ one, many }) => ({
   doctorProfile: one(doctorProfiles, {
@@ -671,6 +681,11 @@ export const insertBigtosMessageSchema = createInsertSchema(bigtosMessages).omit
   createdAt: true,
 });
 
+export const insertSettingSchema = createInsertSchema(settings).omit({
+  id: true,
+  updatedAt: true,
+});
+
 // Additional validation schemas for API endpoints
 export const quizSubmissionSchema = z.object({
   userId: z.number(),
@@ -775,3 +790,6 @@ export type InsertMasterclassBooking = z.infer<typeof insertMasterclassBookingSc
 
 export type BigtosMessage = typeof bigtosMessages.$inferSelect;
 export type InsertBigtosMessage = z.infer<typeof insertBigtosMessageSchema>;
+
+export type Setting = typeof settings.$inferSelect;
+export type InsertSetting = z.infer<typeof insertSettingSchema>;
