@@ -16,6 +16,7 @@ export const quizSessionStatusEnum = pgEnum("quiz_session_status", ["waiting", "
 export const contentTypeEnum = pgEnum("content_type", ["video", "pdf", "text", "quiz"]);
 export const paymentStatusEnum = pgEnum("payment_status", ["free", "paid", "refunded"]);
 export const entityTypeEnum = pgEnum("entity_type", ["course", "quiz", "masterclass"]);
+export const approvalStatusEnum = pgEnum("approval_status", ["pending", "approved", "rejected"]);
 
 // Users table
 export const users = pgTable("users", {
@@ -97,6 +98,7 @@ export const doctorProfiles = pgTable("doctor_profiles", {
   
   // Flags
   isprofilecomplete: boolean("isprofilecomplete").default(false),
+  approvalStatus: approvalStatusEnum("approval_status").default("pending"),
   
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

@@ -125,8 +125,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let query = db.select().from(doctorProfiles);
       
+      // Base condition: only show approved doctors (unless admin requests all)
+      const conditions = [eq(doctorProfiles.approvalStatus, 'approved')];
+      
       if (search || location || specialty) {
-        const conditions = [];
         if (search) {
           conditions.push(
             or(
@@ -147,11 +149,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (specialty && specialty !== 'All Specialties') {
           conditions.push(like(doctorProfiles.pgBranch, `%${specialty}%`));
         }
-        
-        if (conditions.length > 0) {
-          query = query.where(and(...conditions));
-        }
       }
+      
+      query = query.where(and(...conditions));
 
       const doctors = await query.limit(50);
       res.json(doctors);
@@ -165,7 +165,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const [doctor] = await db.select()
         .from(doctorProfiles)
-        .where(eq(doctorProfiles.id, parseInt(req.params.id)))
+        .where(
+          and(
+            eq(doctorProfiles.id, parseInt(req.params.id)),
+            eq(doctorProfiles.approvalStatus, 'approved')
+          )
+        )
         .limit(1);
 
       if (!doctor) {
@@ -212,6 +217,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Update doctor error:", error);
       res.status(500).json({ error: "Failed to update doctor" });
+    }
+  });
+
+  // Admin endpoint to get all doctors (regardless of approval status)
+  app.get("/api/admin/doctors/all", requireAdmin, async (req, res) => {
+    try {
+      const allDoctors = await db.select()
+        .from(doctorProfiles)
+        .orderBy(desc(doctorProfiles.createdAt))
+        .limit(100);
+      
+      res.json(allDoctors);
+    } catch (error) {
+      console.error("Get all doctors error:", error);
+      res.status(500).json({ error: "Failed to fetch all doctors" });
+    }
+  });
+
+  // Get pending doctor approvals
+  app.get("/api/admin/doctors/pending", requireAdmin, async (req, res) => {
+    try {
+      const pendingDoctors = await db.select()
+        .from(doctorProfiles)
+        .where(eq(doctorProfiles.approvalStatus, 'pending'))
+        .orderBy(desc(doctorProfiles.createdAt))
+        .limit(100);
+      
+      res.json(pendingDoctors);
+    } catch (error) {
+      console.error("Get pending doctors error:", error);
+      res.status(500).json({ error: "Failed to fetch pending doctors" });
+    }
+  });
+
+  // Approve doctor profile
+  app.post("/api/admin/doctors/:id/approve", requireAdmin, async (req, res) => {
+    try {
+      const doctorId = parseInt(req.params.id);
+      
+      const [updated] = await db.update(doctorProfiles)
+        .set({ approvalStatus: 'approved', updatedAt: new Date() })
+        .where(eq(doctorProfiles.id, doctorId))
+        .returning();
+      
+      if (!updated) {
+        return res.status(404).json({ error: "Doctor not found" });
+      }
+      
+      res.json({ success: true, doctor: updated });
+    } catch (error) {
+      console.error("Approve doctor error:", error);
+      res.status(500).json({ error: "Failed to approve doctor" });
+    }
+  });
+
+  // Reject doctor profile
+  app.post("/api/admin/doctors/:id/reject", requireAdmin, async (req, res) => {
+    try {
+      const doctorId = parseInt(req.params.id);
+      const { reason } = req.body;
+      
+      const [updated] = await db.update(doctorProfiles)
+        .set({ 
+          approvalStatus: 'rejected', 
+          updatedAt: new Date() 
+        })
+        .where(eq(doctorProfiles.id, doctorId))
+        .returning();
+      
+      if (!updated) {
+        return res.status(404).json({ error: "Doctor not found" });
+      }
+      
+      // TODO: Send rejection notification to doctor via WhatsApp if needed
+      
+      res.json({ success: true, doctor: updated });
+    } catch (error) {
+      console.error("Reject doctor error:", error);
+      res.status(500).json({ error: "Failed to reject doctor" });
     }
   });
 

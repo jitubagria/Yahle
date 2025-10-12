@@ -6,6 +6,7 @@ import { Plus, Pencil, Trash2, Users, AlertCircle, RefreshCw, Mail, Phone } from
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { DoctorImportDialog } from '@/components/admin/DoctorImportDialog';
+import { DoctorApprovalDialog } from '@/components/admin/DoctorApprovalDialog';
 
 type DoctorProfile = {
   id: number;
@@ -24,8 +25,9 @@ type DoctorProfile = {
 
 export default function AdminDoctors() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const { data: doctors = [], isLoading, isError, error, refetch } = useQuery<DoctorProfile[]>({
-    queryKey: ['/api/doctors'],
+    queryKey: ['/api/admin/doctors/all'],
   });
 
   const getFullName = (doctor: DoctorProfile) => {
@@ -53,7 +55,11 @@ export default function AdminDoctors() {
           >
             Import Excel/CSV
           </Button>
-          <Button variant="outline" data-testid="button-approval-queue">
+          <Button 
+            variant="outline" 
+            onClick={() => setApprovalDialogOpen(true)}
+            data-testid="button-approval-queue"
+          >
             Approval Queue
           </Button>
         </div>
@@ -62,6 +68,10 @@ export default function AdminDoctors() {
       <DoctorImportDialog 
         open={importDialogOpen} 
         onOpenChange={setImportDialogOpen} 
+      />
+      <DoctorApprovalDialog 
+        open={approvalDialogOpen} 
+        onOpenChange={setApprovalDialogOpen} 
       />
 
       <Card>
