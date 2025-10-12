@@ -32,6 +32,7 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import AdminDoctors from "@/pages/admin/AdminDoctors";
 import AdminHospitals from "@/pages/admin/AdminHospitals";
 import AdminCourses from "@/pages/admin/AdminCourses";
+import AdminCourseModules from "@/pages/admin/AdminCourseModules";
 import AdminQuizzes from "@/pages/admin/AdminQuizzes";
 import AdminMasterclasses from "@/pages/admin/AdminMasterclasses";
 import AdminJobs from "@/pages/admin/AdminJobs";
@@ -74,6 +75,7 @@ function Router() {
       <Route path="/admin/doctors" component={AdminDoctors} />
       <Route path="/admin/hospitals" component={AdminHospitals} />
       <Route path="/admin/courses" component={AdminCourses} />
+      <Route path="/admin/courses/:courseId/modules" component={AdminCourseModules} />
       <Route path="/admin/quizzes" component={AdminQuizzes} />
       <Route path="/admin/masterclasses" component={AdminMasterclasses} />
       <Route path="/admin/jobs" component={AdminJobs} />
