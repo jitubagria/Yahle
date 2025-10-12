@@ -4,6 +4,7 @@ import createMemoryStore from "memorystore";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { setupWebSocket } from "./liveQuiz";
+import { initializeNPAScheduler } from "./npaScheduler";
 
 const app = express();
 app.use(express.json());
@@ -131,6 +132,9 @@ app.use((req, res, next) => {
   
   // Run immediately on startup
   autoStartQuizzes();
+
+  // Initialize NPA automation scheduler
+  initializeNPAScheduler();
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

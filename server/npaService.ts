@@ -2,8 +2,8 @@ import { db } from "./db";
 import { npaOptIns, npaTemplates, npaAutomation, doctorProfiles, users } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { bigtosService } from "./bigtos";
-import html from 'html-pdf-node';
 import { Storage } from '@google-cloud/storage';
+import htmlPdfNode from 'html-pdf-node';
 
 const storage = new Storage();
 const bucketName = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID || '';
@@ -43,7 +43,7 @@ export class NPAService {
     const file = { content: htmlContent };
 
     try {
-      const pdfBuffer = await html.generatePdf(file, options);
+      const pdfBuffer = await htmlPdfNode.generatePdf(file, options);
       return pdfBuffer;
     } catch (error) {
       console.error('PDF generation error:', error);
@@ -168,11 +168,18 @@ export class NPAService {
       const month = monthNames[now.getMonth()];
       const year = now.getFullYear();
 
+      // Build doctor's full name from profile
+      const doctorName = [
+        doctorProfile.firstName,
+        doctorProfile.middleName,
+        doctorProfile.lastName
+      ].filter(Boolean).join(' ') || user.email || 'Doctor';
+
       // Replace placeholders in template
-      const htmlContent = this.replacePlaceholders(template.htmlContent, {
-        name: doctorProfile.name || user.email || 'Doctor',
-        designation: doctorProfile.designation || 'Medical Professional',
-        regno: doctorProfile.registrationNumber || 'N/A',
+      const htmlContent = this.replacePlaceholders(template.htmlTemplate, {
+        name: doctorName,
+        designation: doctorProfile.professionaldegree || 'Medical Professional',
+        regno: `DOC${String(optIn.userId).padStart(6, '0')}`, // Generate registration number from user ID
         month: month,
         year: year,
       });
@@ -181,7 +188,7 @@ export class NPAService {
       const pdfBuffer = await this.generatePDF(htmlContent);
 
       // Create unique filename
-      const fileName = `NPA_${doctorProfile.registrationNumber || optIn.userId}_${month}_${year}_${Date.now()}.pdf`;
+      const fileName = `NPA_${optIn.userId}_${month}_${year}_${Date.now()}.pdf`;
 
       // Upload to storage
       const certificateUrl = await this.uploadToStorage(pdfBuffer, fileName);
@@ -191,7 +198,7 @@ export class NPAService {
       if (deliveryPhone) {
         await this.sendViaWhatsApp(
           deliveryPhone,
-          doctorProfile.name || 'Doctor',
+          doctorName,
           month,
           year,
           certificateUrl
@@ -201,13 +208,12 @@ export class NPAService {
       // Log the automation
       await db.insert(npaAutomation).values({
         optInId: optIn.id,
-        templateId: template.id,
+        templateUsed: template.id,
         userId: optIn.userId,
-        doctorProfileId: optIn.doctorProfileId,
         month: month,
         year: year,
         status: 'sent',
-        certificateUrl: certificateUrl,
+        generatedPdfUrl: certificateUrl,
         sentDate: new Date(),
       });
 
@@ -229,15 +235,21 @@ export class NPAService {
           'July', 'August', 'September', 'October', 'November', 'December'
         ];
         
+        // Get opt-in to find user ID
+        const [optIn] = await db
+          .select()
+          .from(npaOptIns)
+          .where(eq(npaOptIns.id, optInId))
+          .limit(1);
+        
         await db.insert(npaAutomation).values({
           optInId: optInId,
-          templateId: null,
-          userId: 0,
-          doctorProfileId: 0,
+          templateUsed: null,
+          userId: optIn?.userId || 0,
           month: monthNames[now.getMonth()],
           year: now.getFullYear(),
           status: 'error',
-          errorMessage: errorMessage,
+          lastError: errorMessage,
         });
       } catch (logError) {
         console.error('Failed to log NPA error:', logError);

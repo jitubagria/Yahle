@@ -7,6 +7,7 @@ import { users, doctorProfiles, courses, quizzes, quizQuestions, quizSessions, q
 import { eq, like, or, and, sql, inArray, desc } from "drizzle-orm";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { bigtosService as bigtos } from "./bigtos";
+import { npaService } from "./npaService";
 import { requireAuth, requireAdmin, getAuthenticatedUser } from "./auth";
 import { z } from "zod";
 import { sessionParser } from "./index";
@@ -3656,7 +3657,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Opt-in not found" });
       }
 
-      res.json({ success: true, message: "NPA generation triggered (to be implemented)" });
+      // Use NPA service to generate and deliver certificate
+      const result = await npaService.generateCertificate(parseInt(optInId));
+
+      if (result.success) {
+        res.json({
+          success: true,
+          message: "NPA certificate generated and sent successfully",
+          certificateUrl: result.certificateUrl,
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          error: result.error || "Failed to generate certificate",
+        });
+      }
     } catch (error) {
       console.error("Manual NPA generation error:", error);
       res.status(500).json({ error: "Failed to trigger generation" });
