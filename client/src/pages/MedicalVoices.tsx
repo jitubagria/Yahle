@@ -37,14 +37,22 @@ const categories = [
 
 export default function MedicalVoices() {
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState<string>("");
+  const [category, setCategory] = useState<string>("all");
   const [status, setStatus] = useState<string>("active");
+
+  // Build query string
+  const params = new URLSearchParams();
+  if (status) params.append('status', status);
+  if (category && category !== 'all') params.append('category', category);
+  if (search) params.append('q', search);
+  const queryString = params.toString();
+  const url = `/api/voices${queryString ? `?${queryString}` : ''}`;
 
   const { data, isLoading } = useQuery<{
     voices: MedicalVoice[];
     total: number;
   }>({
-    queryKey: ["/api/voices", { status, category, q: search }],
+    queryKey: [url],
   });
 
   const voices = data?.voices || [];
@@ -85,7 +93,7 @@ export default function MedicalVoices() {
                 <SelectValue placeholder="All Categories" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Categories</SelectItem>
+                <SelectItem value="all">All Categories</SelectItem>
                 {categories.map((cat) => (
                   <SelectItem key={cat} value={cat}>
                     {cat}
@@ -181,7 +189,7 @@ export default function MedicalVoices() {
                   )}
                 </CardContent>
                 <CardFooter className="p-6 pt-0">
-                  <Link href={`/voices/${voice.slug}`} className="w-full">
+                  <Link href={`/medical-voices/${voice.slug}`} className="w-full">
                     <Button className="w-full" data-testid={`button-view-voice-${voice.id}`}>
                       View Campaign
                     </Button>

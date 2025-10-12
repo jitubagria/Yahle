@@ -73,7 +73,7 @@ function Router() {
       <Route path="/ai-tools/medical-statistics" component={MedicalStatistics} />
       <Route path="/ai-tools/literature-search" component={LiteratureSearch} />
       <Route path="/medical-voices" component={MedicalVoices} />
-      <Route path="/voices/:slug" component={MedicalVoiceDetail} />
+      <Route path="/medical-voices/:slug" component={MedicalVoiceDetail} />
       <Route path="/research-services" component={ResearchServices} />
       <Route path="/masterclasses" component={Masterclasses} />
       <Route path="/masterclass/:id" component={MasterclassDetail} />

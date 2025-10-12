@@ -24,7 +24,7 @@ interface VoiceData {
 }
 
 export default function MedicalVoiceDetail() {
-  const [, params] = useRoute("/voices/:slug");
+  const [, params] = useRoute("/medical-voices/:slug");
   const { toast } = useToast();
   const [motivationNote, setMotivationNote] = useState("");
   const [gatheringRemarks, setGatheringRemarks] = useState("");
