@@ -6,6 +6,7 @@ import { Plus, Pencil, Trash2, Brain, AlertCircle, RefreshCw, Trophy, Users, Clo
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { format } from 'date-fns';
+import { QuizForm, QuizDeleteDialog } from '@/components/admin';
 
 type Quiz = {
   id: number;
@@ -27,6 +28,10 @@ type Quiz = {
 };
 
 export default function AdminQuizzes() {
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
+  const [deletingQuiz, setDeletingQuiz] = useState<Quiz | null>(null);
+
   const { data: quizzes = [], isLoading, isError, error, refetch } = useQuery<Quiz[]>({
     queryKey: ['/api/quizzes'],
   });
@@ -57,7 +62,7 @@ export default function AdminQuizzes() {
           <h1 className="text-3xl font-bold mb-2">Quizzes Management</h1>
           <p className="text-muted-foreground">Create and manage quizzes and competitions</p>
         </div>
-        <Button data-testid="button-create-quiz">
+        <Button onClick={() => setShowCreateForm(true)} data-testid="button-create-quiz">
           <Plus className="w-4 h-4 mr-2" />
           Create Quiz
         </Button>
@@ -94,7 +99,7 @@ export default function AdminQuizzes() {
           ) : quizzes.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-muted-foreground mb-4">No quizzes created yet</p>
-              <Button variant="outline">
+              <Button variant="outline" onClick={() => setShowCreateForm(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 Create Your First Quiz
               </Button>
@@ -163,6 +168,7 @@ export default function AdminQuizzes() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => setEditingQuiz(quiz)}
                             data-testid={`button-edit-${quiz.id}`}
                           >
                             <Pencil className="w-4 h-4" />
@@ -170,6 +176,7 @@ export default function AdminQuizzes() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => setDeletingQuiz(quiz)}
                             data-testid={`button-delete-${quiz.id}`}
                           >
                             <Trash2 className="w-4 h-4" />
@@ -184,6 +191,25 @@ export default function AdminQuizzes() {
           )}
         </CardContent>
       </Card>
+
+      {/* Create/Edit Quiz Form Dialog */}
+      {(showCreateForm || editingQuiz) && (
+        <QuizForm
+          quiz={editingQuiz || undefined}
+          onClose={() => {
+            setShowCreateForm(false);
+            setEditingQuiz(null);
+          }}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {deletingQuiz && (
+        <QuizDeleteDialog
+          quiz={deletingQuiz}
+          onClose={() => setDeletingQuiz(null)}
+        />
+      )}
     </div>
   );
 }
