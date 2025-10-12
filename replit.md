@@ -30,9 +30,12 @@ The backend uses **Node.js** with **Express.js** and **TypeScript** for a REST A
 - **Quiz System**: Real-time quiz system with WebSocket support for live participation, leaderboards, and countdown timers. Production-ready API for quiz CRUD, join/submit, and ranking.
 - **Certificate & Notification System**: Dynamic certificate generation using Jimp with customizable templates, automatic WhatsApp delivery, and triggers for course completion, quiz completion, and masterclass bookings.
 - **Admin Dashboards**: Comprehensive admin panels for managing doctors, hospitals, courses, quizzes, jobs, AI tools, research services, users, messaging, payments, settings, and certificates. All 12 admin management pages implemented with full CRUD interfaces, protected by `requireAdmin` middleware.
+  - **Payments Reports**: Revenue dashboard with total/paid/free/refunded breakdowns, recent transactions table with filtering, and safe error handling.
+  - **Settings Management**: Platform-wide configuration system with categorized settings (platform, WhatsApp, certificates, notifications), inline editing, and real-time updates.
 - **Job Posting System**: Authenticated users can post job openings with full form validation using React Hook Form + Zod. Features include job type selection, location details, salary range, experience requirements, and detailed descriptions. Authentication-gated with proper client-side validation.
 - **Dashboard System**: Personalized user dashboards with progress tracking, enrolled courses, quiz performance, research requests, and earned certificates.
-- **WhatsApp Integration**: Extensive use of BigTos API for OTP delivery, course enrollments, quiz completion certificates, masterclass bookings, and research service updates, with comprehensive logging.
+- **WhatsApp Integration**: Extensive use of BigTos API for OTP delivery, course enrollments, quiz completion certificates, masterclass bookings, and research service updates, with comprehensive logging. Fixed response parsing to recognize multiple success formats.
+- **Doctor-Hospital Relationships**: Bidirectional relationship system using existing doctor job fields (jobPrivateHospital, jobAddedPrivateHospital) with endpoints for querying doctors by hospital and hospitals by doctor, featuring exact case-insensitive name matching and approval status filtering.
 - **UI/UX**: Custom design system built on Material Design principles, optimized for healthcare professionals, with clear typography and a focus on readability and professionalism.
 
 ## External Dependencies
