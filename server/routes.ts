@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import type { IncomingMessage } from "http";
 import { db } from "./db";
-import { users, doctorProfiles, courses, quizzes, quizQuestions, quizSessions, quizResponses, quizLeaderboard, certificates, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, enrollments, courseModules, courseProgress, courseCertificates, entityTemplates, bigtosMessages, settings, medicalVoices, medicalVoiceSupporters, medicalVoiceUpdates, medicalVoiceContacts, medicalVoiceGatheringJoins, insertUserSchema, adminUpdateUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertQuizSessionSchema, insertQuizResponseSchema, insertQuizLeaderboardSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema, insertCourseModuleSchema, insertCourseProgressSchema, insertCourseCertificateSchema, insertEntityTemplateSchema, insertSettingSchema, insertMedicalVoiceSchema, insertMedicalVoiceSupporterSchema, insertMedicalVoiceUpdateSchema, insertMedicalVoiceContactSchema, insertMedicalVoiceGatheringJoinSchema } from "@shared/schema";
+import { users, doctorProfiles, courses, quizzes, quizQuestions, quizSessions, quizResponses, quizLeaderboard, certificates, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, enrollments, courseModules, courseProgress, courseCertificates, entityTemplates, bigtosMessages, settings, medicalVoices, medicalVoiceSupporters, medicalVoiceUpdates, medicalVoiceContacts, medicalVoiceGatheringJoins, npaTemplates, npaOptIns, npaAutomation, insertUserSchema, adminUpdateUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertQuizSessionSchema, insertQuizResponseSchema, insertQuizLeaderboardSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema, insertCourseModuleSchema, insertCourseProgressSchema, insertCourseCertificateSchema, insertEntityTemplateSchema, insertSettingSchema, insertMedicalVoiceSchema, insertMedicalVoiceSupporterSchema, insertMedicalVoiceUpdateSchema, insertMedicalVoiceContactSchema, insertMedicalVoiceGatheringJoinSchema, insertNpaTemplateSchema, insertNpaOptInSchema, insertNpaAutomationSchema } from "@shared/schema";
 import { eq, like, or, and, sql, inArray, desc } from "drizzle-orm";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { bigtosService as bigtos } from "./bigtos";
@@ -3507,6 +3507,304 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Send research notification error:", error);
       res.status(500).json({ error: "Failed to send notification" });
+    }
+  });
+
+  // ===== NPA AUTOMATION ROUTES =====
+
+  // Admin: Get all NPA templates
+  app.get("/api/admin/npa/templates", requireAdmin, async (req, res) => {
+    try {
+      const templates = await db.select().from(npaTemplates).orderBy(desc(npaTemplates.createdAt));
+      res.json(templates);
+    } catch (error) {
+      console.error("Get NPA templates error:", error);
+      res.status(500).json({ error: "Failed to fetch templates" });
+    }
+  });
+
+  // Admin: Create NPA template
+  app.post("/api/admin/npa/templates", requireAdmin, async (req, res) => {
+    try {
+      const result = insertNpaTemplateSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ error: result.error.message });
+      }
+
+      const created = await db.insert(npaTemplates).values(result.data).returning();
+      res.status(201).json(created[0]);
+    } catch (error) {
+      console.error("Create NPA template error:", error);
+      res.status(500).json({ error: "Failed to create template" });
+    }
+  });
+
+  // Admin: Update NPA template
+  app.patch("/api/admin/npa/templates/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const result = insertNpaTemplateSchema.partial().safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ error: result.error.message });
+      }
+
+      const updated = await db
+        .update(npaTemplates)
+        .set({ ...result.data, updatedAt: new Date() })
+        .where(eq(npaTemplates.id, parseInt(id)))
+        .returning();
+
+      if (updated.length === 0) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      res.json(updated[0]);
+    } catch (error) {
+      console.error("Update NPA template error:", error);
+      res.status(500).json({ error: "Failed to update template" });
+    }
+  });
+
+  // Admin: Delete NPA template
+  app.delete("/api/admin/npa/templates/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await db.delete(npaTemplates).where(eq(npaTemplates.id, parseInt(id))).returning();
+
+      if (deleted.length === 0) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete NPA template error:", error);
+      res.status(500).json({ error: "Failed to delete template" });
+    }
+  });
+
+  // Admin: Get automation logs
+  app.get("/api/admin/npa/logs", requireAdmin, async (req, res) => {
+    try {
+      const { status, limit = "50", offset = "0" } = req.query;
+
+      const conditions = [
+        status && status !== "all" ? eq(npaAutomation.status, status as any) : null
+      ].filter(Boolean);
+
+      const logs = await db
+        .select({
+          automation: npaAutomation,
+          user: users,
+          doctorProfile: doctorProfiles,
+        })
+        .from(npaAutomation)
+        .leftJoin(users, eq(npaAutomation.userId, users.id))
+        .leftJoin(doctorProfiles, eq(users.id, doctorProfiles.userId))
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(desc(npaAutomation.createdAt))
+        .limit(parseInt(limit as string))
+        .offset(parseInt(offset as string));
+
+      const [countResult] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(npaAutomation)
+        .where(conditions.length > 0 ? and(...conditions) : undefined);
+
+      res.json({
+        logs,
+        total: countResult.count,
+      });
+    } catch (error) {
+      console.error("Get NPA logs error:", error);
+      res.status(500).json({ error: "Failed to fetch logs" });
+    }
+  });
+
+  // Admin: Get opt-ins list
+  app.get("/api/admin/npa/opt-ins", requireAdmin, async (req, res) => {
+    try {
+      const optIns = await db
+        .select({
+          optIn: npaOptIns,
+          user: users,
+          doctorProfile: doctorProfiles,
+        })
+        .from(npaOptIns)
+        .leftJoin(users, eq(npaOptIns.userId, users.id))
+        .leftJoin(doctorProfiles, eq(npaOptIns.doctorProfileId, doctorProfiles.id))
+        .orderBy(desc(npaOptIns.createdAt));
+
+      res.json(optIns);
+    } catch (error) {
+      console.error("Get NPA opt-ins error:", error);
+      res.status(500).json({ error: "Failed to fetch opt-ins" });
+    }
+  });
+
+  // Admin: Manually trigger NPA generation for specific user
+  app.post("/api/admin/npa/generate/:optInId", requireAdmin, async (req, res) => {
+    try {
+      const { optInId } = req.params;
+
+      const [optIn] = await db
+        .select()
+        .from(npaOptIns)
+        .where(eq(npaOptIns.id, parseInt(optInId)))
+        .limit(1);
+
+      if (!optIn) {
+        return res.status(404).json({ error: "Opt-in not found" });
+      }
+
+      res.json({ success: true, message: "NPA generation triggered (to be implemented)" });
+    } catch (error) {
+      console.error("Manual NPA generation error:", error);
+      res.status(500).json({ error: "Failed to trigger generation" });
+    }
+  });
+
+  // User: Get NPA opt-in status
+  app.get("/api/npa/status", requireAuth, async (req, res) => {
+    try {
+      const authenticatedUser = getAuthenticatedUser(req);
+
+      const [optIn] = await db
+        .select()
+        .from(npaOptIns)
+        .where(eq(npaOptIns.userId, authenticatedUser.id))
+        .limit(1);
+
+      if (!optIn) {
+        return res.json({ optedIn: false });
+      }
+
+      const recentLogs = await db
+        .select()
+        .from(npaAutomation)
+        .where(eq(npaAutomation.optInId, optIn.id))
+        .orderBy(desc(npaAutomation.createdAt))
+        .limit(5);
+
+      res.json({
+        optedIn: true,
+        optIn,
+        recentLogs,
+      });
+    } catch (error) {
+      console.error("Get NPA status error:", error);
+      res.status(500).json({ error: "Failed to fetch status" });
+    }
+  });
+
+  // User: Opt-in to NPA automation
+  app.post("/api/npa/opt-in", requireAuth, async (req, res) => {
+    try {
+      const authenticatedUser = getAuthenticatedUser(req);
+
+      const [doctorProfile] = await db
+        .select()
+        .from(doctorProfiles)
+        .where(eq(doctorProfiles.userId, authenticatedUser.id))
+        .limit(1);
+
+      if (!doctorProfile) {
+        return res.status(400).json({ error: "Doctor profile not found. Please complete your profile first." });
+      }
+
+      const existing = await db
+        .select()
+        .from(npaOptIns)
+        .where(eq(npaOptIns.userId, authenticatedUser.id))
+        .limit(1);
+
+      if (existing.length > 0) {
+        return res.status(400).json({ error: "Already opted in" });
+      }
+
+      const result = insertNpaOptInSchema.safeParse({
+        userId: authenticatedUser.id,
+        doctorProfileId: doctorProfile.id,
+        preferredDay: req.body.preferredDay || 1,
+        templateId: req.body.templateId,
+        deliveryEmail: req.body.deliveryEmail || authenticatedUser.email || doctorProfile.email,
+        deliveryWhatsapp: req.body.deliveryWhatsapp || authenticatedUser.phone,
+        isActive: true,
+      });
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.error.message });
+      }
+
+      const created = await db.insert(npaOptIns).values(result.data).returning();
+      res.status(201).json(created[0]);
+    } catch (error) {
+      console.error("NPA opt-in error:", error);
+      res.status(500).json({ error: "Failed to opt-in" });
+    }
+  });
+
+  // User: Update NPA opt-in preferences
+  app.patch("/api/npa/opt-in", requireAuth, async (req, res) => {
+    try {
+      const authenticatedUser = getAuthenticatedUser(req);
+
+      const updated = await db
+        .update(npaOptIns)
+        .set({
+          preferredDay: req.body.preferredDay,
+          deliveryEmail: req.body.deliveryEmail,
+          deliveryWhatsapp: req.body.deliveryWhatsapp,
+          isActive: req.body.isActive,
+          updatedAt: new Date(),
+        })
+        .where(eq(npaOptIns.userId, authenticatedUser.id))
+        .returning();
+
+      if (updated.length === 0) {
+        return res.status(404).json({ error: "Opt-in not found" });
+      }
+
+      res.json(updated[0]);
+    } catch (error) {
+      console.error("Update NPA opt-in error:", error);
+      res.status(500).json({ error: "Failed to update preferences" });
+    }
+  });
+
+  // User: Opt-out from NPA automation
+  app.delete("/api/npa/opt-out", requireAuth, async (req, res) => {
+    try {
+      const authenticatedUser = getAuthenticatedUser(req);
+
+      const deleted = await db
+        .delete(npaOptIns)
+        .where(eq(npaOptIns.userId, authenticatedUser.id))
+        .returning();
+
+      if (deleted.length === 0) {
+        return res.status(404).json({ error: "Opt-in not found" });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("NPA opt-out error:", error);
+      res.status(500).json({ error: "Failed to opt-out" });
+    }
+  });
+
+  // Get active NPA template for users
+  app.get("/api/npa/templates/active", async (req, res) => {
+    try {
+      const [template] = await db
+        .select()
+        .from(npaTemplates)
+        .where(eq(npaTemplates.isActive, true))
+        .limit(1);
+
+      res.json(template || null);
+    } catch (error) {
+      console.error("Get active template error:", error);
+      res.status(500).json({ error: "Failed to fetch template" });
     }
   });
 

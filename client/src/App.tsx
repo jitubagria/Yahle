@@ -46,6 +46,9 @@ import AdminMessaging from "@/pages/admin/AdminMessaging";
 import AdminPayments from "@/pages/admin/AdminPayments";
 import AdminSettings from "@/pages/admin/AdminSettings";
 import AdminVoices from "@/pages/admin/AdminVoices";
+import AdminNPATemplates from "@/pages/admin/AdminNPATemplates";
+import AdminNPALogs from "@/pages/admin/AdminNPALogs";
+import AutomateNPA from "@/pages/AutomateNPA";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -72,6 +75,7 @@ function Router() {
       <Route path="/ai-tools/diagnosis-helper" component={DiagnosisHelper} />
       <Route path="/ai-tools/medical-statistics" component={MedicalStatistics} />
       <Route path="/ai-tools/literature-search" component={LiteratureSearch} />
+      <Route path="/ai-tools/automate-npa" component={AutomateNPA} />
       <Route path="/medical-voices" component={MedicalVoices} />
       <Route path="/medical-voices/:slug" component={MedicalVoiceDetail} />
       <Route path="/research-services" component={ResearchServices} />
@@ -93,6 +97,8 @@ function Router() {
       <Route path="/admin/payments" component={AdminPayments} />
       <Route path="/admin/settings" component={AdminSettings} />
       <Route path="/admin/voices" component={AdminVoices} />
+      <Route path="/admin/npa/templates" component={AdminNPATemplates} />
+      <Route path="/admin/npa/logs" component={AdminNPALogs} />
       <Route component={NotFound} />
     </Switch>
   );

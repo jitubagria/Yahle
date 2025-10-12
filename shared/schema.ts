@@ -20,6 +20,7 @@ export const approvalStatusEnum = pgEnum("approval_status", ["pending", "approve
 export const voiceStatusEnum = pgEnum("voice_status", ["draft", "active", "closed"]);
 export const visibilityEnum = pgEnum("visibility", ["public", "private"]);
 export const rsvpStatusEnum = pgEnum("rsvp_status", ["interested", "confirmed", "withdrawn"]);
+export const npaAutomationStatusEnum = pgEnum("npa_automation_status", ["pending", "sent", "error"]);
 
 // Users table
 export const users = pgTable("users", {
@@ -972,3 +973,74 @@ export type InsertMedicalVoiceContact = z.infer<typeof insertMedicalVoiceContact
 
 export type MedicalVoiceGatheringJoin = typeof medicalVoiceGatheringJoins.$inferSelect;
 export type InsertMedicalVoiceGatheringJoin = z.infer<typeof insertMedicalVoiceGatheringJoinSchema>;
+
+// NPA Automation Tables
+
+// NPA Templates - stores certificate templates with HTML and placeholders
+export const npaTemplates = pgTable("npa_templates", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  htmlTemplate: text("html_template").notNull(),
+  placeholders: text("placeholders").array().notNull().default(sql`ARRAY[]::text[]`),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// NPA Opt-ins - which doctors have opted in and their preferences
+export const npaOptIns = pgTable("npa_opt_ins", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull().unique(),
+  doctorProfileId: integer("doctor_profile_id").references(() => doctorProfiles.id).notNull(),
+  isActive: boolean("is_active").default(true),
+  preferredDay: integer("preferred_day").default(1),
+  templateId: integer("template_id").references(() => npaTemplates.id),
+  deliveryEmail: varchar("delivery_email", { length: 255 }),
+  deliveryWhatsapp: varchar("delivery_whatsapp", { length: 20 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// NPA Automation - logs of certificate generation and delivery
+export const npaAutomation = pgTable("npa_automation", {
+  id: serial("id").primaryKey(),
+  optInId: integer("opt_in_id").references(() => npaOptIns.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  month: varchar("month", { length: 50 }).notNull(),
+  year: integer("year").notNull(),
+  generatedPdfUrl: text("generated_pdf_url"),
+  status: npaAutomationStatusEnum("status").default("pending"),
+  sentDate: timestamp("sent_date"),
+  lastError: text("last_error"),
+  templateUsed: integer("template_used").references(() => npaTemplates.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// NPA schemas
+export const insertNpaTemplateSchema = createInsertSchema(npaTemplates).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true 
+});
+
+export const insertNpaOptInSchema = createInsertSchema(npaOptIns).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true 
+});
+
+export const insertNpaAutomationSchema = createInsertSchema(npaAutomation).omit({ 
+  id: true, 
+  createdAt: true 
+});
+
+// NPA types
+export type NpaTemplate = typeof npaTemplates.$inferSelect;
+export type InsertNpaTemplate = z.infer<typeof insertNpaTemplateSchema>;
+
+export type NpaOptIn = typeof npaOptIns.$inferSelect;
+export type InsertNpaOptIn = z.infer<typeof insertNpaOptInSchema>;
+
+export type NpaAutomation = typeof npaAutomation.$inferSelect;
+export type InsertNpaAutomation = z.infer<typeof insertNpaAutomationSchema>;

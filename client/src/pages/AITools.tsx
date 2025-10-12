@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Brain, Calculator, FileSearch, Check } from 'lucide-react';
+import { Brain, Calculator, FileSearch, Check, Zap } from 'lucide-react';
 import { Link } from 'wouter';
 
 const aiTools = [
@@ -42,6 +42,19 @@ const aiTools = [
       'Meta-Analysis',
       'Citation Management',
       'Paper Summaries'
+    ]
+  },
+  {
+    id: 'automate-npa',
+    title: 'Automate NPA',
+    description: 'Never miss your Non-Practicing Allowance certificate. Auto-generate and receive NPA certificates monthly via WhatsApp and email.',
+    icon: Zap,
+    category: 'Automation',
+    available: true,
+    features: [
+      'Auto-Generate Certificates',
+      'WhatsApp Delivery',
+      'Monthly Scheduling'
     ]
   }
 ];
