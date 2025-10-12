@@ -71,13 +71,10 @@ export default function Jobs() {
 
   const postJobMutation = useMutation({
     mutationFn: async (data: JobPostFormData) => {
-      return apiRequest('/api/jobs', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...data,
-          postedBy: user?.id,
-          isActive: true,
-        }),
+      return apiRequest('POST', '/api/jobs', {
+        ...data,
+        postedBy: user?.id,
+        isActive: true,
       });
     },
     onSuccess: () => {
