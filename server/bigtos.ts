@@ -109,11 +109,18 @@ export class BigtosService {
       }
 
       // Check if BigTos API returned success
-      // BigTos typically returns { status: 'success' } or similar on success
+      // BigTos can return various success formats:
+      // - { status: 'success' } or { status: 'sent' }
+      // - { success: true }
+      // - { msg: 'Messages Sent Successfully' } or similar
+      // - Plain text that gets wrapped as { raw: '...' }
       const isSuccess = response.ok && (
         responseData.status === 'success' || 
         responseData.success === true ||
-        responseData.status === 'sent'
+        responseData.status === 'sent' ||
+        responseData.status === 'Success' ||
+        (responseData.msg && responseData.msg.toLowerCase().includes('success')) ||
+        (responseData.raw && responseData.raw.toLowerCase().includes('success'))
       );
 
       // Log the message to database with correct status

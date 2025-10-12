@@ -3,10 +3,10 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import type { IncomingMessage } from "http";
 import { db } from "./db";
-import { users, doctorProfiles, courses, quizzes, quizQuestions, quizSessions, quizResponses, quizLeaderboard, certificates, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, enrollments, courseModules, courseProgress, courseCertificates, entityTemplates, insertUserSchema, adminUpdateUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertQuizSessionSchema, insertQuizResponseSchema, insertQuizLeaderboardSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema, insertCourseModuleSchema, insertCourseProgressSchema, insertCourseCertificateSchema, insertEntityTemplateSchema } from "@shared/schema";
+import { users, doctorProfiles, courses, quizzes, quizQuestions, quizSessions, quizResponses, quizLeaderboard, certificates, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, enrollments, courseModules, courseProgress, courseCertificates, entityTemplates, bigtosMessages, insertUserSchema, adminUpdateUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertQuizSessionSchema, insertQuizResponseSchema, insertQuizLeaderboardSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema, insertCourseModuleSchema, insertCourseProgressSchema, insertCourseCertificateSchema, insertEntityTemplateSchema } from "@shared/schema";
 import { eq, like, or, and, sql, inArray, desc } from "drizzle-orm";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
-import { bigtosService } from "./bigtos";
+import { bigtosService as bigtos } from "./bigtos";
 import { requireAuth, requireAdmin, getAuthenticatedUser } from "./auth";
 import { z } from "zod";
 import { sessionParser } from "./index";
@@ -2103,6 +2103,153 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Get user dashboard error:", error);
       res.status(500).json({ error: "Failed to fetch dashboard data" });
+    }
+  });
+
+  // ===== MANUAL MESSAGING ROUTES =====
+  
+  // Get filtered doctors for messaging
+  app.post("/api/admin/messaging/filter-doctors", requireAdmin, async (req, res) => {
+    try {
+      const { jobCity, jobState, ugCollege, ugAdmissionYear, pgCollege, pgAdmissionYear, pgBranch, ssCollege, ssAdmissionYear } = req.body;
+      
+      const conditions = [eq(doctorProfiles.approvalStatus, 'approved')];
+      
+      if (jobCity) {
+        conditions.push(like(doctorProfiles.jobCity, `%${jobCity}%`));
+      }
+      if (jobState) {
+        conditions.push(like(doctorProfiles.jobState, `%${jobState}%`));
+      }
+      if (ugCollege) {
+        conditions.push(like(doctorProfiles.ugCollege, `%${ugCollege}%`));
+      }
+      if (ugAdmissionYear) {
+        conditions.push(like(doctorProfiles.ugAdmissionYear, `%${ugAdmissionYear}%`));
+      }
+      if (pgCollege) {
+        conditions.push(like(doctorProfiles.pgCollege, `%${pgCollege}%`));
+      }
+      if (pgAdmissionYear) {
+        conditions.push(like(doctorProfiles.pgAdmissionYear, `%${pgAdmissionYear}%`));
+      }
+      if (pgBranch) {
+        conditions.push(like(doctorProfiles.pgBranch, `%${pgBranch}%`));
+      }
+      if (ssCollege) {
+        conditions.push(like(doctorProfiles.ssCollege, `%${ssCollege}%`));
+      }
+      if (ssAdmissionYear) {
+        conditions.push(like(doctorProfiles.ssAdmissionYear, `%${ssAdmissionYear}%`));
+      }
+      
+      const doctors = await db.select({
+        id: doctorProfiles.id,
+        firstName: doctorProfiles.firstName,
+        middleName: doctorProfiles.middleName,
+        lastName: doctorProfiles.lastName,
+        userMobile: doctorProfiles.userMobile,
+        jobCity: doctorProfiles.jobCity,
+        jobState: doctorProfiles.jobState,
+        ugCollege: doctorProfiles.ugCollege,
+        ugAdmissionYear: doctorProfiles.ugAdmissionYear,
+        pgCollege: doctorProfiles.pgCollege,
+        pgAdmissionYear: doctorProfiles.pgAdmissionYear,
+        pgBranch: doctorProfiles.pgBranch,
+      })
+        .from(doctorProfiles)
+        .where(and(...conditions))
+        .limit(500);
+      
+      res.json(doctors);
+    } catch (error) {
+      console.error("Filter doctors error:", error);
+      res.status(500).json({ error: "Failed to filter doctors" });
+    }
+  });
+
+  // Send manual messages to selected doctors
+  app.post("/api/admin/messaging/send", requireAdmin, async (req, res) => {
+    try {
+      const { doctorIds, message, imageUrl, type } = req.body;
+      
+      if (!doctorIds || !Array.isArray(doctorIds) || doctorIds.length === 0) {
+        return res.status(400).json({ error: "No doctors selected" });
+      }
+      
+      if (!message || message.trim() === '') {
+        return res.status(400).json({ error: "Message is required" });
+      }
+      
+      if (!['Text', 'Image'].includes(type)) {
+        return res.status(400).json({ error: "Invalid message type" });
+      }
+      
+      if (type === 'Image' && !imageUrl) {
+        return res.status(400).json({ error: "Image URL is required for Image messages" });
+      }
+      
+      // Get doctor mobile numbers
+      const doctors = await db.select({
+        id: doctorProfiles.id,
+        userMobile: doctorProfiles.userMobile,
+      })
+        .from(doctorProfiles)
+        .where(
+          and(
+            eq(doctorProfiles.approvalStatus, 'approved'),
+            inArray(doctorProfiles.id, doctorIds)
+          )
+        );
+      
+      const results = {
+        total: doctors.length,
+        sent: 0,
+        failed: 0,
+        errors: [] as string[],
+      };
+      
+      // Send messages using BigTos
+      for (const doctor of doctors) {
+        if (!doctor.userMobile) {
+          results.failed++;
+          results.errors.push(`Doctor ID ${doctor.id}: No mobile number`);
+          continue;
+        }
+        
+        try {
+          if (type === 'Text') {
+            await bigtos.sendText(doctor.userMobile, message);
+          } else {
+            await bigtos.sendTextImage(doctor.userMobile, message, imageUrl!);
+          }
+          results.sent++;
+        } catch (error) {
+          results.failed++;
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          results.errors.push(`Doctor ID ${doctor.id}: ${errorMsg}`);
+        }
+      }
+      
+      res.json(results);
+    } catch (error) {
+      console.error("Send messages error:", error);
+      res.status(500).json({ error: "Failed to send messages" });
+    }
+  });
+
+  // Get message logs
+  app.get("/api/admin/messaging/logs", requireAdmin, async (req, res) => {
+    try {
+      const logs = await db.select()
+        .from(bigtosMessages)
+        .orderBy(desc(bigtosMessages.createdAt))
+        .limit(100);
+      
+      res.json(logs);
+    } catch (error) {
+      console.error("Get message logs error:", error);
+      res.status(500).json({ error: "Failed to fetch message logs" });
     }
   });
 
