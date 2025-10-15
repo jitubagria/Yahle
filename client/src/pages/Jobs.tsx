@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Briefcase, MapPin, DollarSign, Clock, Building2, Search, Plus } from 'lucide-react';
 import { Link } from 'wouter';
+import type { Job } from '@/types/models';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Dialog,
@@ -68,7 +69,7 @@ export default function Jobs() {
     },
   });
 
-  const { data: jobs, isLoading } = useQuery({
+  const { data: jobs, isLoading } = useQuery<Job[]>({
     queryKey: ['/api/jobs', appliedSearchTerm, appliedLocation, appliedSpecialty],
   });
 

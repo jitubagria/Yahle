@@ -20,6 +20,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { getAuthenticatedUser } from '@/lib/auth';
+import type { StatsResponse } from '@/types/models';
 import { useEffect } from 'react';
 import { useLocation, Link } from 'wouter';
 
@@ -33,7 +34,7 @@ export default function AdminDashboard() {
     }
   }, [user, setLocation]);
 
-  const { data: stats } = useQuery({
+  const { data: stats } = useQuery<StatsResponse>({
     queryKey: ['/api/admin/stats'],
   });
 

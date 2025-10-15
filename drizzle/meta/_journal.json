@@ -1,0 +1,76 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1760479587684,
+      "tag": "0000_gorgeous_dreaming_celestial",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1760479727122,
+      "tag": "0001_orange_mercury",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1760521623668,
+      "tag": "0002_cynical_mother_askani",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1760544712133,
+      "tag": "0003_fast_killmonger",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1760544753006,
+      "tag": "0004_warm_sharon_ventura",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1760545463384,
+      "tag": "0005_lumpy_newton_destine",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1760548980133,
+      "tag": "0006_flowery_wind_dancer",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1760549322628,
+      "tag": "0007_gorgeous_rattler",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1760556860594,
+      "tag": "0008_great_whizzer",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1760558209646,
+      "tag": "0009_third_infant_terrible",
+      "breakpoints": true
+    }
+  ]
+}

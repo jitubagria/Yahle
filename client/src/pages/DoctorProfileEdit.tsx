@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useRoute, useLocation } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import type { DoctorProfile as DoctorProfileModel } from '../types/models';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -68,15 +69,15 @@ export default function DoctorProfileEdit() {
   const [showCropper, setShowCropper] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-  const { data: doctor, isLoading } = useQuery({
+  const { data: doctor, isLoading } = useQuery<DoctorProfileModel | null>({
     queryKey: [`/api/doctors/${doctorId}`],
     enabled: !!doctorId,
   });
 
   const form = useForm({
     resolver: zodResolver(profileSchema),
-    defaultValues: doctor || {},
-    values: doctor,
+    defaultValues: (doctor as any) || {},
+    values: (doctor as any) || undefined,
   });
 
   const updateMutation = useMutation({
@@ -115,9 +116,11 @@ export default function DoctorProfileEdit() {
       
       // Upload each image size to object storage
       for (const [key, base64] of Object.entries(images)) {
-        // Get upload URL and object path
-        const uploadResponse = await apiRequest('POST', '/api/objects/upload', {});
-        const { uploadURL, objectPath } = uploadResponse;
+      // Get upload URL and object path
+      const uploadResponse = await apiRequest('POST', '/api/objects/upload', {});
+      // apiRequest returns parsed JSON; be explicit and parse/cast for safety
+      const data = (await (uploadResponse as any)) as { uploadURL: string; objectPath: string };
+      const { uploadURL, objectPath } = data as { uploadURL: string; objectPath: string };
         
         // Convert base64 to blob
         const blob = await fetch(base64).then(r => r.blob());

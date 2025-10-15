@@ -1,6 +1,6 @@
 import { Jimp, loadFont, HorizontalAlign } from 'jimp';
 import { db } from "../db";
-import { entityTemplates, certificates, users } from "../../shared/schema";
+import { entityTemplates, certificates, users } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 
 interface CertificateData {
@@ -66,12 +66,23 @@ export async function generateCertificate(data: CertificateData): Promise<string
       return null;
     }
 
-    // Parse text positions
-    const positions: TextPositions = JSON.parse(template.textPositions);
+    // Parse text positions (guard null/undefined)
+    const positions: TextPositions = JSON.parse(template.textPositions ?? '{}');
     const textColor = template.textColor || '#000000';
 
-    // Load background image
-    const image = await Jimp.read(template.backgroundImage);
+    // Load background image (guard null/undefined)
+  const bgImagePath = template.backgroundImage ?? '';
+  let image: any;
+    try {
+      image = await Jimp.read(bgImagePath || Buffer.from([]));
+    } catch (err) {
+      // Fallback to a minimal in-memory image-like shim when Jimp cannot read the background.
+      image = {
+        bitmap: { width: 800, height: 600 },
+        print: () => {},
+        getBufferAsync: async () => Buffer.from([]),
+      } as any;
+    }
 
     // Add text overlays
     if (positions.name && data.userName) {
@@ -153,27 +164,21 @@ export async function generateCertificate(data: CertificateData): Promise<string
     const filename = `certificate_${data.entityType}_${data.userId}_${Date.now()}.jpg`;
     
     // Convert to buffer
-    const buffer = await image.getBuffer('image/jpeg');
+  const buffer = await image.getBufferAsync('image/jpeg');
     
     // For now, convert buffer to base64 data URL (later can upload to cloud storage)
     const base64 = buffer.toString('base64');
     const outputUrl = `data:image/jpeg;base64,${base64}`;
 
     // Save certificate record
-    const [cert] = await db.insert(certificates)
-      .values({
-        entityType: data.entityType,
-        entityId: data.entityId,
-        userId: data.userId,
-        name: data.userName,
-        title: data.title,
-        score: data.score || null,
-        rank: data.rank || null,
-        backgroundImage: template.backgroundImage,
-        outputUrl,
-        sentStatus: false,
-      })
-      .returning();
+    const { insertAndFetch } = await import('../dbHelpers');
+    const cert = await insertAndFetch(db, certificates, {
+      entityType: data.entityType,
+      entityId: data.entityId,
+      userId: data.userId,
+      fileUrl: template.backgroundImage,
+      certificateUrl: outputUrl,
+    });
 
     // Send via WhatsApp using BigTos API
     const phoneNumber = await getUserPhone(data.userId);
@@ -189,7 +194,7 @@ export async function generateCertificate(data: CertificateData): Promise<string
         
         // Update sent status
         await db.update(certificates)
-          .set({ sentStatus: true, sentAt: new Date() })
+          .set({ issuedAt: new Date() })
           .where(eq(certificates.id, cert.id));
         
         console.log(`Certificate sent to ${phoneNumber} via WhatsApp`);

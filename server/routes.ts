@@ -3,14 +3,20 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import type { IncomingMessage } from "http";
 import { db } from "./db";
-import { users, doctorProfiles, courses, quizzes, quizQuestions, quizSessions, quizResponses, quizLeaderboard, certificates, jobs, masterclasses, researchServiceRequests, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, enrollments, courseModules, courseProgress, courseCertificates, entityTemplates, bigtosMessages, settings, medicalVoices, medicalVoiceSupporters, medicalVoiceUpdates, medicalVoiceContacts, medicalVoiceGatheringJoins, npaTemplates, npaOptIns, npaAutomation, insertUserSchema, adminUpdateUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertQuizSessionSchema, insertQuizResponseSchema, insertQuizLeaderboardSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema, insertCourseModuleSchema, insertCourseProgressSchema, insertCourseCertificateSchema, insertEntityTemplateSchema, insertSettingSchema, insertMedicalVoiceSchema, insertMedicalVoiceSupporterSchema, insertMedicalVoiceUpdateSchema, insertMedicalVoiceContactSchema, insertMedicalVoiceGatheringJoinSchema, insertNpaTemplateSchema, insertNpaOptInSchema, insertNpaAutomationSchema } from "@shared/schema";
+import { users, courses, courseModules, enrollments, quizzes, quizQuestions, aiTools, npaAutomation, npaTemplates, medicalVoices, medicalVoiceGatherings, medicalVoiceSupporters, researchRequests, settings, medicalVoiceContacts, medicalVoiceUpdates, medicalVoiceGatheringJoins } from "../drizzle/schema";
+import { doctorProfiles, quizSessions, quizResponses, quizLeaderboard, certificates, jobs, masterclasses, aiToolRequests, hospitals, jobApplications, masterclassBookings, quizAttempts, courseProgress, courseCertificates, entityTemplates, bigtosMessages, npaOptIns, contacts } from "../drizzle/schema";
+import { insertUserSchema, adminUpdateUserSchema, insertDoctorProfileSchema, insertCourseSchema, insertJobSchema, insertQuizSchema, insertQuizSessionSchema, insertQuizResponseSchema, insertQuizLeaderboardSchema, insertMasterclassSchema, insertResearchServiceRequestSchema, insertAiToolRequestSchema, quizSubmissionSchema, jobApplicationCreateSchema, aiToolRequestCreateSchema, courseEnrollmentNotificationSchema, quizCertificateNotificationSchema, masterclassBookingNotificationSchema, researchServiceNotificationSchema, insertCourseModuleSchema, insertCourseProgressSchema, insertCourseCertificateSchema, insertEntityTemplateSchema, insertSettingSchema, insertMedicalVoiceSchema, insertMedicalVoiceSupporterSchema, insertMedicalVoiceUpdateSchema, insertMedicalVoiceContactSchema, insertMedicalVoiceGatheringJoinSchema, insertNpaTemplateSchema, insertNpaOptInSchema, insertNpaAutomationSchema } from "../shared/schema";
 import { eq, like, or, and, sql, inArray, desc } from "drizzle-orm";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
-import { bigtosService as bigtos } from "./bigtos";
+import { bigtosService } from "./bigtos";
+
+// Backwards-compatible alias: some older code references `bigtos` directly.
+// Keep a local alias to avoid many "Cannot find name 'bigtos'" TypeScript errors
+// while we progressively align the codebase to the newer `bigtosService` API.
+const bigtos = bigtosService;
 import { npaService } from "./npaService";
 import { requireAuth, requireAdmin, getAuthenticatedUser } from "./auth";
 import { z } from "zod";
-import { sessionParser } from "./index";
 
 // Helper function to recalculate quiz leaderboard ranks with tie-breaking
 async function recalculateQuizRanks(quizId: number) {
@@ -124,10 +130,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { search, location, specialty } = req.query;
       
-      let query = db.select().from(doctorProfiles);
+  let query: any = db.select().from(doctorProfiles);
       
       // Base condition: only show approved doctors (unless admin requests all)
-      const conditions = [eq(doctorProfiles.approvalStatus, 'approved')];
+  const conditions: Array<any> = [eq(doctorProfiles.approvalStatus, 'approved')];
       
       if (search || location || specialty) {
         if (search) {
@@ -152,7 +158,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      query = query.where(and(...conditions));
+  query = query.where(conditions.length > 0 ? and(...(conditions as any[])) : undefined);
 
       const doctors = await query.limit(50);
       res.json(doctors);
@@ -164,14 +170,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/doctors/:id", async (req, res) => {
     try {
+      const doctorConditions: Array<any> = [eq(doctorProfiles.id, parseInt(req.params.id)), eq(doctorProfiles.approvalStatus, 'approved')];
       const [doctor] = await db.select()
         .from(doctorProfiles)
-        .where(
-          and(
-            eq(doctorProfiles.id, parseInt(req.params.id)),
-            eq(doctorProfiles.approvalStatus, 'approved')
-          )
-        )
+        .where(doctorConditions.length > 0 ? and(...doctorConditions) : undefined)
         .limit(1);
 
       if (!doctor) {
@@ -188,11 +190,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/doctors", async (req, res) => {
     try {
       const validated = insertDoctorProfileSchema.parse(req.body);
-      
-      const [newDoctor] = await db.insert(doctorProfiles)
-        .values(validated)
-        .returning();
-
+      const { insertAndFetch } = await import("./dbHelpers");
+      const newDoctor = await insertAndFetch(db, doctorProfiles, validated);
       res.json(newDoctor);
     } catch (error) {
       console.error("Create doctor error:", error);
@@ -257,15 +256,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const doctorId = parseInt(req.params.id);
       
-      const [updated] = await db.update(doctorProfiles)
-        .set({ approvalStatus: 'approved', updatedAt: new Date() })
-        .where(eq(doctorProfiles.id, doctorId))
-        .returning();
-      
+      await db.update(doctorProfiles)
+        .set({ approvalStatus: 'approved' })
+        .where(eq(doctorProfiles.id, doctorId));
+
+      const [updated] = await db.select().from(doctorProfiles).where(eq(doctorProfiles.id, doctorId)).limit(1);
       if (!updated) {
         return res.status(404).json({ error: "Doctor not found" });
       }
-      
       res.json({ success: true, doctor: updated });
     } catch (error) {
       console.error("Approve doctor error:", error);
@@ -279,20 +277,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const doctorId = parseInt(req.params.id);
       const { reason } = req.body;
       
-      const [updated] = await db.update(doctorProfiles)
-        .set({ 
-          approvalStatus: 'rejected', 
-          updatedAt: new Date() 
-        })
-        .where(eq(doctorProfiles.id, doctorId))
-        .returning();
-      
+      await db.update(doctorProfiles)
+        .set({ approvalStatus: 'rejected' })
+        .where(eq(doctorProfiles.id, doctorId));
+
+      const [updated] = await db.select().from(doctorProfiles).where(eq(doctorProfiles.id, doctorId)).limit(1);
       if (!updated) {
         return res.status(404).json({ error: "Doctor not found" });
       }
-      
+
       // TODO: Send rejection notification to doctor via WhatsApp if needed
-      
+
       res.json({ success: true, doctor: updated });
     } catch (error) {
       console.error("Reject doctor error:", error);
@@ -327,12 +322,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             userId = existingUser.id;
           } else {
             // Create new user
-            const [newUser] = await db.insert(users).values({
-              phone,
-              role: 'doctor',
-              isVerified: true,
-            }).returning();
-            userId = newUser.id;
+              const newUserRes: any = await db.insert(users).values({
+                phone,
+                role: 'doctor',
+                isVerified: true,
+              }).execute();
+              userId = newUserRes.insertId as number;
           }
 
           // Check if profile exists for this user
@@ -365,7 +360,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             isprofilecomplete: false,
           };
 
-          const [inserted] = await db.insert(doctorProfiles).values(profileData).returning();
+          const insertResult: any = await db.insert(doctorProfiles).values(profileData).execute();
+          const insertedId = insertResult.insertId as number;
+          const [inserted] = await db.select().from(doctorProfiles).where(eq(doctorProfiles.id, insertedId)).limit(1);
           insertedDoctors.push(inserted);
         } catch (rowError) {
           errors.push({ row, error: String(rowError) });
@@ -418,10 +415,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validated = insertCourseSchema.parse(req.body);
       
-      const [newCourse] = await db.insert(courses)
-        .values(validated)
-        .returning();
-
+      const { insertAndFetch } = await import("./dbHelpers");
+      const newCourse = await insertAndFetch(db, courses, validated);
       res.json(newCourse);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -445,8 +440,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         description: z.string().optional(),
         category: z.string().max(100).optional(),
         level: z.enum(['beginner', 'intermediate', 'advanced']).optional(),
-        duration: z.string().max(50).optional(),
-        price: z.number().int().min(0).optional(),
+        duration: z.number().int().min(0).optional(),
+        price: z.number().min(0).optional(),
         instructor: z.string().max(255).optional(),
         imageUrl: z.string().optional(),
         thumbnailImage: z.string().optional(),
@@ -458,16 +453,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }).strict();
       
       const validated = courseUpdateSchema.parse(req.body);
-      
-      const [updatedCourse] = await db.update(courses)
-        .set({ ...validated, updatedAt: new Date() })
-        .where(eq(courses.id, courseId))
-        .returning();
+      const duration = Number(validated.duration ?? 0);
+      const price = validated.price !== undefined ? validated.price : undefined;
 
-      if (!updatedCourse) {
+      const updateResult: any = await db.update(courses)
+        .set({ ...validated, duration, price: price !== undefined ? String(price) : undefined, updatedAt: new Date() })
+        .where(eq(courses.id, courseId))
+        .execute();
+
+      if (!updateResult || !updateResult.affectedRows) {
         return res.status(404).json({ error: "Course not found" });
       }
 
+      const [updatedCourse] = await db.select().from(courses).where(eq(courses.id, courseId)).limit(1);
       res.json(updatedCourse);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -486,15 +484,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid course ID" });
       }
 
-      const [deleted] = await db.delete(courses)
+      const deletedRes: any = await db.delete(courses)
         .where(eq(courses.id, courseId))
-        .returning();
+        .execute();
 
-      if (!deleted) {
+      if (!deletedRes || !deletedRes.affectedRows) {
         return res.status(404).json({ error: "Course not found" });
       }
 
-      res.json({ success: true, deletedCourse: deleted });
+      res.json({ success: true, deletedCourseId: courseId });
     } catch (error) {
       console.error("Delete course error:", error);
       res.status(500).json({ error: "Failed to delete course" });
@@ -535,10 +533,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         courseId 
       });
 
-      const [module] = await db.insert(courseModules)
-        .values(validated)
-        .returning();
-
+  const moduleInsert: any = await db.insert(courseModules).values(validated).execute();
+  const moduleId = moduleInsert.insertId as number;
+  const [module] = await db.select().from(courseModules).where(eq(courseModules.id, moduleId)).limit(1);
       res.json(module);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -564,14 +561,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const validated = insertCourseModuleSchema.partial().parse(req.body);
 
-      const [updated] = await db.update(courseModules)
+      const moduleConditions: Array<any> = [eq(courseModules.id, moduleId), eq(courseModules.courseId, courseId)];
+      const updatedRes: any = await db.update(courseModules)
         .set(validated)
-        .where(and(
-          eq(courseModules.id, moduleId),
-          eq(courseModules.courseId, courseId)
-        ))
-        .returning();
+        .where(moduleConditions.length > 0 ? and(...moduleConditions) : undefined)
+        .execute();
 
+      const updatedId = (updatedRes.affectedRows ? moduleId : null) as number | null;
+      const [updated] = updatedId ? await db.select().from(courseModules).where(eq(courseModules.id, updatedId)).limit(1) : [null];
       if (!updated) {
         return res.status(404).json({ error: "Module not found in this course" });
       }
@@ -599,18 +596,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid module ID" });
       }
 
-      const [deleted] = await db.delete(courseModules)
-        .where(and(
-          eq(courseModules.id, moduleId),
-          eq(courseModules.courseId, courseId)
-        ))
-        .returning();
+      const deleteModuleConditions: Array<any> = [eq(courseModules.id, moduleId), eq(courseModules.courseId, courseId)];
+      const deletedRes: any = await db.delete(courseModules)
+        .where(deleteModuleConditions.length > 0 ? and(...deleteModuleConditions) : undefined)
+        .execute();
 
-      if (!deleted) {
-        return res.status(404).json({ error: "Module not found in this course" });
-      }
-
-      res.json({ success: true });
+      const deletedId = deletedRes.affectedRows ? moduleId : null;
+      if (!deletedId) return res.status(404).json({ error: "Module not found in this course" });
+      res.json({ success: true, deletedId });
     } catch (error) {
       console.error("Delete module error:", error);
       res.status(500).json({ error: "Failed to delete module" });
@@ -655,15 +648,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Update each module's order
         for (const item of validated) {
-          const result = await tx.update(courseModules)
+          const updatedRes: any = await tx.update(courseModules)
             .set({ orderNo: item.orderNo })
             .where(and(
               eq(courseModules.id, item.id),
               eq(courseModules.courseId, courseId)
             ))
-            .returning();
+            .execute();
 
-          if (result.length === 0) {
+          if (!updatedRes || !updatedRes.affectedRows) {
             throw new Error(`Module ${item.id} not found or not in course ${courseId}`);
           }
         }
@@ -730,31 +723,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validated = insertEntityTemplateSchema.parse(req.body);
       
       // Check if template exists for this entity
+      const templateConditions: Array<any> = [eq(entityTemplates.entityType, validated.entityType), eq(entityTemplates.entityId, validated.entityId)];
       const [existing] = await db.select()
         .from(entityTemplates)
-        .where(and(
-          eq(entityTemplates.entityType, validated.entityType),
-          eq(entityTemplates.entityId, validated.entityId)
-        ))
+        .where(templateConditions.length > 0 ? and(...templateConditions) : undefined)
         .limit(1);
 
       if (existing) {
         // Update existing template
-        const [updated] = await db.update(entityTemplates)
+        await db.update(entityTemplates)
           .set({
             ...validated,
             updatedAt: new Date()
           })
-          .where(eq(entityTemplates.id, existing.id))
-          .returning();
-        
+          .where(eq(entityTemplates.id, existing.id));
+
+        const [updated] = await db.select().from(entityTemplates).where(eq(entityTemplates.id, existing.id)).limit(1);
         return res.json(updated);
       } else {
         // Create new template
-        const [newTemplate] = await db.insert(entityTemplates)
-          .values(validated)
-          .returning();
-        
+  const insertResult: any = await db.insert(entityTemplates).values(validated).execute();
+  const newId = insertResult.insertId as number;
+  const [newTemplate] = await db.select().from(entityTemplates).where(eq(entityTemplates.id, newId)).limit(1);
         return res.json(newTemplate);
       }
     } catch (error) {
@@ -774,15 +764,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid template ID" });
       }
 
-      const [deleted] = await db.delete(entityTemplates)
-        .where(eq(entityTemplates.id, templateId))
-        .returning();
+      const deletedRes: any = await db.delete(entityTemplates).where(eq(entityTemplates.id, templateId)).execute();
 
-      if (!deleted) {
+      if (!deletedRes || !deletedRes.affectedRows) {
         return res.status(404).json({ error: "Template not found" });
       }
 
-      res.json({ success: true, deletedTemplate: deleted });
+      res.json({ success: true, deletedTemplateId: templateId });
     } catch (error) {
       console.error("Delete template error:", error);
       res.status(500).json({ error: "Failed to delete template" });
@@ -833,15 +821,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create enrollment and update course enrollment count
-      const [enrollment] = await db.insert(enrollments)
-        .values({
-          userId: user.id,
-          courseId,
-          paymentStatus: validated.paymentStatus,
-          amountPaid: validated.amountPaid,
-          paymentMethod: validated.paymentMethod,
-        })
-        .returning();
+      const { insertAndFetch } = await import("./dbHelpers");
+      const enrollment = await insertAndFetch(db, enrollments, {
+        userId: user.id,
+        courseId,
+        paymentStatus: validated.paymentStatus,
+        amountPaid: validated.amountPaid,
+        paymentMethod: validated.paymentMethod,
+      });
 
       // Update enrollment count
       await db.update(courses)
@@ -852,7 +839,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Send WhatsApp enrollment notification
       try {
-        await bigtosService.sendCourseEnrollmentNotification(user.phone, course.title);
+        await bigtosService.sendCourseEnrollmentNotification(user.phone ?? '', course.title ?? '');
       } catch (notifError) {
         console.error('Failed to send enrollment notification:', notifError);
       }
@@ -1026,8 +1013,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       let progress;
       if (existing) {
-        // Update existing progress
-        [progress] = await db.update(courseProgress)
+        // Update existing progress using execute() then select the row
+        await db.update(courseProgress)
           .set({
             completed: validated.completed,
             progressPercentage: validated.progressPercentage ?? existing.progressPercentage,
@@ -1035,20 +1022,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
             completedAt: validated.completed ? new Date() : existing.completedAt,
           })
           .where(eq(courseProgress.id, existing.id))
-          .returning();
+          .execute();
+
+        [progress] = await db.select().from(courseProgress).where(eq(courseProgress.id, existing.id)).limit(1);
       } else {
-        // Create new progress record
-        [progress] = await db.insert(courseProgress)
-          .values({
-            userId: user.id,
-            courseId,
-            moduleId,
-            completed: validated.completed,
-            progressPercentage: validated.progressPercentage ?? 0,
-            lastPosition: validated.lastPosition,
-            completedAt: validated.completed ? new Date() : null,
-          })
-          .returning();
+        // Create new progress record using insertAndFetch helper
+        const { insertAndFetch } = await import("./dbHelpers");
+        progress = await insertAndFetch(db, courseProgress, {
+          userId: user.id,
+          courseId,
+          moduleId,
+          completed: validated.completed,
+          progressPercentage: validated.progressPercentage ?? 0,
+          lastPosition: validated.lastPosition,
+          completedAt: validated.completed ? new Date() : null,
+        });
       }
 
       res.json(progress);
@@ -1166,18 +1154,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           entityId: courseId,
           entityType: 'course',
           userName: userInfo?.email?.split('@')[0] || `User${user.id}`,
-          title: course.title,
+          title: course.title ?? 'Untitled',
           completionDate: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
         });
 
-        [certificate] = await db.insert(courseCertificates)
-          .values({
-            userId: user.id,
-            courseId,
-            certificateNumber,
-            certificateUrl: certificateUrl || `/certificates/${certificateNumber}.pdf`,
-          })
-          .returning();
+        const { insertAndFetch } = await import("./dbHelpers");
+        certificate = await insertAndFetch(db, courseCertificates, {
+          userId: user.id,
+          courseId,
+          certificateNumber,
+          certificateUrl: certificateUrl || `/certificates/${certificateNumber}.pdf`,
+        });
 
         res.json({
           completed: true,
@@ -1334,17 +1321,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const passed = validated.score >= (quiz.passingScore || 60);
 
-      const [attempt] = await db.insert(quizAttempts)
-        .values({
-          userId: user.id, // Use authenticated user ID
-          quizId,
-          score: validated.score,
-          totalQuestions: validated.totalQuestions,
-          timeTaken: validated.timeTaken,
-          passed,
-          certificateIssued: passed,
-        })
-        .returning();
+      const { insertAndFetch } = await import("./dbHelpers");
+      const attempt = await insertAndFetch(db, quizAttempts, {
+        userId: user.id, // Use authenticated user ID
+        quizId,
+        score: validated.score,
+        totalQuestions: validated.totalQuestions,
+        timeTaken: validated.timeTaken,
+        passed,
+        certificateIssued: passed,
+      });
 
       // Generate certificate if passed
       if (passed) {
@@ -1360,7 +1346,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             entityId: quizId,
             entityType: 'quiz',
             userName: userInfo?.email?.split('@')[0] || `User${user.id}`,
-            title: quiz.title,
+            title: quiz.title ?? 'Quiz',
             score: `${validated.score}%`,
             completionDate: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
           });
@@ -1398,11 +1384,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validated = insertQuizSchema.parse(req.body);
       
-      const [newQuiz] = await db.insert(quizzes)
-        .values(validated)
-        .returning();
-
-      res.json(newQuiz);
+  const { insertAndFetch } = await import("./dbHelpers");
+  const newQuiz = await insertAndFetch(db, quizzes, validated);
+  res.json(newQuiz);
     } catch (error) {
       console.error("Create quiz error:", error);
       res.status(400).json({ error: "Failed to create quiz" });
@@ -1434,16 +1418,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }).strict();
       
       const validated = quizUpdateSchema.parse(req.body);
-      
-      const [updatedQuiz] = await db.update(quizzes)
-        .set({ ...validated, updatedAt: new Date() })
-        .where(eq(quizzes.id, quizId))
-        .returning();
+      const startTime = validated.startTime ? (typeof validated.startTime === 'string' ? new Date(validated.startTime) : validated.startTime) : undefined;
+      const endTime = validated.endTime ? (typeof validated.endTime === 'string' ? new Date(validated.endTime) : validated.endTime) : undefined;
+      const isActive = validated.status ? validated.status === 'active' : undefined;
 
-      if (!updatedQuiz) {
+      const updatePayload: any = { ...validated, updatedAt: new Date() };
+      if (startTime !== undefined) updatePayload.startTime = startTime;
+      if (endTime !== undefined) updatePayload.endTime = endTime;
+      if (isActive !== undefined) updatePayload.isActive = isActive;
+      // Remove 'status' if present - schema uses isActive
+      delete updatePayload.status;
+
+      const updateRes: any = await db.update(quizzes)
+        .set(updatePayload)
+        .where(eq(quizzes.id, quizId))
+        .execute();
+
+      if (!updateRes || !updateRes.affectedRows) {
         return res.status(404).json({ error: "Quiz not found" });
       }
 
+      const [updatedQuiz] = await db.select().from(quizzes).where(eq(quizzes.id, quizId)).limit(1);
       res.json(updatedQuiz);
     } catch (error) {
       console.error("Update quiz error:", error);
@@ -1467,12 +1462,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Check if user already joined
+      const leaderboardConditions: Array<any> = [eq(quizLeaderboard.quizId, quizId), eq(quizLeaderboard.userId, user.id)];
       const existing = await db.select()
         .from(quizLeaderboard)
-        .where(and(
-          eq(quizLeaderboard.quizId, quizId),
-          eq(quizLeaderboard.userId, user.id)
-        ))
+        .where(leaderboardConditions.length > 0 ? and(...leaderboardConditions) : undefined)
         .limit(1);
 
       if (existing.length > 0) {
@@ -1480,14 +1473,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create leaderboard entry
-      const [entry] = await db.insert(quizLeaderboard)
-        .values({
-          quizId,
-          userId: user.id,
-          totalScore: 0,
-          rank: 0
-        })
-        .returning();
+      const { insertAndFetch: insertAndFetch2 } = await import("./dbHelpers");
+      const entry = await insertAndFetch2(db, quizLeaderboard, {
+        quizId,
+        userId: user.id,
+        totalScore: 0,
+        rank: 0,
+      });
 
       res.json({ success: true, entry });
     } catch (error) {
@@ -1517,17 +1509,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const score = isCorrect ? (question.marks || 1) : 0;
 
       // Save response
-      const [response] = await db.insert(quizResponses)
-        .values({
-          quizId,
-          questionId,
-          userId: user.id,
-          selectedOption,
-          isCorrect,
-          responseTime,
-          score
-        })
-        .returning();
+      const { insertAndFetch } = await import("./dbHelpers");
+      const response = await insertAndFetch(db, quizResponses, {
+        quizId,
+        questionId,
+        userId: user.id,
+        selectedOption,
+        isCorrect,
+        responseTime,
+        score,
+      });
 
       // Update leaderboard score
       await db.execute(sql`
@@ -1551,14 +1542,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const quizId = parseInt(req.params.id);
 
-      const result = await db.execute(sql`
+      const [rows] = await db.execute(sql`
         SELECT * FROM quiz_sessions
         WHERE quiz_id = ${quizId}
         ORDER BY id DESC
         LIMIT 1
       `);
 
-      const session = result.rows[0] || null;
+      const session = (rows as unknown as any[])[0] || null;
 
       res.json({ session });
     } catch (error) {
@@ -1591,9 +1582,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Update quiz status
+      // Update quiz status -> schema uses `isActive`
       await db.update(quizzes)
-        .set({ status: 'active' })
+        .set({ isActive: true })
         .where(eq(quizzes.id, quizId));
 
       res.json({ success: true, message: 'Live quiz started' });
@@ -1634,8 +1625,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .limit(1);
 
       // Calculate if passed: compare percentage score against passing percentage
-      const percentage = quiz?.totalQuestions ? (result.totalScore / quiz.totalQuestions) * 100 : 0;
-      const passed = percentage >= (quiz?.passingScore || 60);
+  const totalScore = Number(result.totalScore || 0);
+  const totalQuestions = Number(quiz?.totalQuestions || 0);
+  const percentage = totalQuestions ? (totalScore / totalQuestions) * 100 : 0;
+  const passed = percentage >= (Number(quiz?.passingScore || 60));
 
       res.json({ ...result, passed, percentage, quiz });
     } catch (error) {
@@ -1649,10 +1642,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { search, location, specialty } = req.query;
       
-      let query = db.select().from(jobs).where(eq(jobs.isActive, true));
+  let query: any = db.select().from(jobs).where(eq(jobs.isActive, true));
       
       if (search || location || specialty) {
-        const conditions = [eq(jobs.isActive, true)];
+        const conditions: Array<any> = [eq(jobs.isActive, true)];
         if (search) {
           conditions.push(like(jobs.title, `%${search}%`));
         }
@@ -1663,7 +1656,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           conditions.push(like(jobs.specialty, `%${specialty}%`));
         }
         
-        query = query.where(and(...conditions));
+        query = query.where(conditions.length > 0 ? and(...(conditions as any[])) : undefined);
       }
 
       const jobsList = await query.limit(50);
@@ -1696,10 +1689,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validated = insertJobSchema.parse(req.body);
       
-      const [newJob] = await db.insert(jobs)
-        .values(validated)
-        .returning();
-
+  const { insertAndFetch } = await import("./dbHelpers");
+  const newJob = await insertAndFetch(db, jobs, validated);
       res.json(newJob);
     } catch (error) {
       console.error("Create job error:", error);
@@ -1718,15 +1709,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Job not found" });
       }
 
-      const [application] = await db.insert(jobApplications)
-        .values({
-          jobId,
-          userId: validated.userId,
-          coverLetter: validated.coverLetter,
-          status: "pending",
-        })
-        .returning();
-
+      const { insertAndFetch: _insertAndFetch } = await import("./dbHelpers");
+      const application = await _insertAndFetch(db, jobApplications, {
+        jobId,
+        userId: validated.userId,
+        coverLetter: validated.coverLetter,
+        status: "pending",
+      });
       res.json(application);
     } catch (error) {
       console.error("Apply to job error:", error);
@@ -1776,12 +1765,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Check for duplicate booking
+      const bookingConditions: Array<any> = [eq(masterclassBookings.userId, user.id), eq(masterclassBookings.masterclassId, masterclassId)];
       const [existingBooking] = await db.select()
         .from(masterclassBookings)
-        .where(and(
-          eq(masterclassBookings.userId, user.id),
-          eq(masterclassBookings.masterclassId, masterclassId)
-        ))
+        .where(bookingConditions.length > 0 ? and(...bookingConditions) : undefined)
         .limit(1);
 
       if (existingBooking) {
@@ -1798,20 +1785,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Check capacity only if maxParticipants is set (not null)
-      if (masterclass.maxParticipants !== null && 
-          masterclass.currentParticipants >= masterclass.maxParticipants) {
+      const maxParticipants = masterclass.maxParticipants == null ? null : Number(masterclass.maxParticipants);
+      const currentParticipants = Number(masterclass.currentParticipants || 0);
+      if (maxParticipants !== null && currentParticipants >= maxParticipants) {
         return res.status(400).json({ error: "Masterclass is full" });
       }
 
-      const [booking] = await db.insert(masterclassBookings)
-        .values({
-          userId: user.id,
-          masterclassId,
-        })
-        .returning();
+      const { insertAndFetch: insertAndFetchBooking } = await import("./dbHelpers");
+      const booking = await insertAndFetchBooking(db, masterclassBookings, {
+        userId: user.id,
+        masterclassId,
+      });
 
       await db.update(masterclasses)
-        .set({ currentParticipants: masterclass.currentParticipants + 1 })
+        .set({ currentParticipants: currentParticipants + 1 })
         .where(eq(masterclasses.id, masterclassId));
 
       // Generate certificate for masterclass attendance (booking = attendance in this system)
@@ -1827,7 +1814,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           entityId: masterclassId,
           entityType: 'masterclass',
           userName: userInfo?.email?.split('@')[0] || `User${user.id}`,
-          title: masterclass.title,
+          title: masterclass.title ?? '',
           completionDate: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
         });
       } catch (certError) {
@@ -1835,11 +1822,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Send WhatsApp booking confirmation notification
-      try {
+        try {
         const scheduledDate = masterclass.scheduledAt 
           ? new Date(masterclass.scheduledAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
           : 'TBD';
-        await bigtosService.sendMasterclassBookingNotification(user.phone, masterclass.title, scheduledDate);
+        await bigtosService.sendMasterclassBookingNotification(user.phone ?? '', masterclass.title ?? '', scheduledDate);
       } catch (notifError) {
         console.error('Failed to send masterclass booking notification:', notifError);
       }
@@ -1942,10 +1929,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { userId } = req.query;
       
-      let query = db.select().from(researchServiceRequests);
+  let query: any = db.select().from(researchRequests);
       
       if (userId) {
-        query = query.where(eq(researchServiceRequests.userId, parseInt(userId as string)));
+  query = query.where(eq(researchRequests.userId, parseInt(userId as string)));
       }
       
       const requests = await query.limit(50);
@@ -1972,10 +1959,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "pending",
       });
       
-      const [newRequest] = await db.insert(researchServiceRequests)
-        .values(validated)
-        .returning();
-
+  const { insertAndFetch: insertAndFetchResearch } = await import("./dbHelpers");
+  const newRequest = await insertAndFetchResearch(db, researchRequests, validated);
       res.json(newRequest);
     } catch (error) {
       console.error("Create research request error:", error);
@@ -1998,15 +1983,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get the request with user info for WhatsApp notification
       const [request] = await db.select({
-        id: researchServiceRequests.id,
-        userId: researchServiceRequests.userId,
-        title: researchServiceRequests.title,
-        serviceType: researchServiceRequests.serviceType,
+        id: researchRequests.id,
+        userId: researchRequests.userId,
+        title: researchRequests.title,
+        details: researchRequests.details,
         userPhone: users.phone,
       })
-        .from(researchServiceRequests)
-        .innerJoin(users, eq(researchServiceRequests.userId, users.id))
-        .where(eq(researchServiceRequests.id, requestId))
+        .from(researchRequests)
+        .innerJoin(users, eq(researchRequests.userId, users.id))
+        .where(eq(researchRequests.id, requestId))
         .limit(1);
 
       if (!request) {
@@ -2014,16 +1999,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Update the status
-      const [updated] = await db.update(researchServiceRequests)
-        .set({ status })
-        .where(eq(researchServiceRequests.id, requestId))
-        .returning();
+  await db.update(researchRequests).set({ status }).where(eq(researchRequests.id, requestId));
+  const [updated] = await db.select().from(researchRequests).where(eq(researchRequests.id, requestId)).limit(1);
 
       // Send WhatsApp notification about status change
       try {
         await bigtosService.sendResearchServiceNotification(
-          request.userPhone, 
-          request.title || request.serviceType, 
+          request.userPhone ?? '', 
+          request.title ?? request.details ?? '', 
           status
         );
       } catch (notifError) {
@@ -2061,10 +2044,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get active research requests
       const activeRequests = await db.select({ count: sql<number>`count(*)` })
-        .from(researchServiceRequests)
+        .from(researchRequests)
         .where(and(
-          eq(researchServiceRequests.userId, userId),
-          sql`${researchServiceRequests.status} IN ('pending', 'in_progress')`
+          eq(researchRequests.userId, userId),
+          sql`${researchRequests.status} IN ('pending', 'in_progress')`
         ));
 
       // Get next masterclass
@@ -2204,8 +2187,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         pgAdmissionYear: doctorProfiles.pgAdmissionYear,
         pgBranch: doctorProfiles.pgBranch,
       })
-        .from(doctorProfiles)
-        .where(and(...conditions))
+  .from(doctorProfiles)
+  .where(conditions.length > 0 ? and(...(conditions as any[])) : undefined)
         .limit(500);
       
       res.json(doctors);
@@ -2450,8 +2433,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ) : null
       ].filter(Boolean);
 
-      let query = db.select().from(medicalVoices)
-        .where(and(...conditions))
+  let query: any = db.select().from(medicalVoices)
+        .where(conditions.length > 0 ? and(...(conditions as any[])) : undefined)
         .orderBy(desc(medicalVoices.createdAt))
         .limit(parseInt(limit as string))
         .offset(offset);
@@ -2465,10 +2448,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         category ? eq(medicalVoices.category, category as string) : null
       ].filter(Boolean);
 
-      const [countResult] = await db
-        .select({ count: sql<number>`count(*)` })
+      const [countResult] = await db.select({ count: sql<number>`count(*)` })
         .from(medicalVoices)
-        .where(and(...countConditions));
+        .where(countConditions.length > 0 ? and(...(countConditions as any[])) : undefined as undefined);
 
       res.json({
         voices,
@@ -2606,13 +2588,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Add support
-      const [supporter] = await db.insert(medicalVoiceSupporters)
-        .values({
-          voiceId: parseInt(id),
-          userId,
-          motivationNote,
-        })
-        .returning();
+      const { insertAndFetch } = await import("./dbHelpers");
+      const supporter = await insertAndFetch(db, medicalVoiceSupporters, {
+        voiceId: parseInt(id),
+        userId,
+        motivationNote,
+      });
 
       // Increment supporters count
       await db.update(medicalVoices)
@@ -2634,16 +2615,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const userId = req.session.userId!;
 
-      const deleted = await db.delete(medicalVoiceSupporters)
+      const deletedIds = await db.delete(medicalVoiceSupporters)
         .where(
           and(
             eq(medicalVoiceSupporters.voiceId, parseInt(id)),
             eq(medicalVoiceSupporters.userId, userId)
           )
-        )
-        .returning();
+        );
 
-      if (deleted.length > 0) {
+      if (deletedIds && deletedIds.length > 0) {
         // Decrement supporters count
         await db.update(medicalVoices)
           .set({ 
@@ -2689,23 +2669,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (existing) {
         // Update existing join
-        const [updated] = await db.update(medicalVoiceGatheringJoins)
-          .set({ status, remarks })
-          .where(eq(medicalVoiceGatheringJoins.id, existing.id))
-          .returning();
-        
+        await db.update(medicalVoiceGatheringJoins).set({ status, remarks }).where(eq(medicalVoiceGatheringJoins.id, existing.id));
+        const [updated] = await db.select().from(medicalVoiceGatheringJoins).where(eq(medicalVoiceGatheringJoins.id, existing.id)).limit(1);
         return res.json({ success: true, join: updated });
       }
 
       // Create new join
-      const [join] = await db.insert(medicalVoiceGatheringJoins)
-        .values({
-          voiceId: parseInt(id),
-          userId,
-          status,
-          remarks,
-        })
-        .returning();
+      const { insertAndFetch: insertJoin } = await import("./dbHelpers");
+      const join = await insertJoin(db, medicalVoiceGatheringJoins, {
+        voiceId: parseInt(id),
+        userId,
+        status,
+        remarks,
+      });
 
       res.json({ success: true, join });
     } catch (error) {
@@ -2766,14 +2742,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate slug if not provided
       const slug = data.slug || generateSlug(data.title);
 
-      const [voice] = await db.insert(medicalVoices)
-        .values({
-          ...data,
-          slug,
-          creatorId: userId,
-        })
-        .returning();
-
+      const { insertAndFetch: insertVoice } = await import("./dbHelpers");
+      const voice = await insertVoice(db, medicalVoices, {
+        ...data,
+        slug,
+        creatorId: userId,
+      });
       res.json(voice);
     } catch (error) {
       console.error("Create voice error:", error);
@@ -2792,11 +2766,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         data.slug = generateSlug(data.title);
       }
 
-      const [voice] = await db.update(medicalVoices)
-        .set({ ...data, updatedAt: new Date() })
-        .where(eq(medicalVoices.id, parseInt(id)))
-        .returning();
-
+      await db.update(medicalVoices).set({ ...data, updatedAt: new Date() }).where(eq(medicalVoices.id, parseInt(id)));
+      const [voice] = await db.select().from(medicalVoices).where(eq(medicalVoices.id, parseInt(id))).limit(1);
       res.json(voice);
     } catch (error) {
       console.error("Update voice error:", error);
@@ -2825,14 +2796,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const { updateTitle, updateBody, notifySupporters } = req.body;
 
-      const [update] = await db.insert(medicalVoiceUpdates)
-        .values({
-          voiceId: parseInt(id),
-          updateTitle,
-          updateBody,
-          notifySupporters,
-        })
-        .returning();
+      const { insertAndFetch: insertUpdate } = await import("./dbHelpers");
+      const update = await insertUpdate(db, medicalVoiceUpdates, {
+        voiceId: parseInt(id),
+        updateTitle,
+        updateBody,
+        notifySupporters,
+      });
 
       // If notify supporters, send WhatsApp messages
       if (notifySupporters) {
@@ -2854,12 +2824,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Send notifications (in background)
         for (const supporter of supporters) {
-          bigtos.sendVoiceUpdate(
-            supporter.phone,
-            supporter.firstName || 'Supporter',
-            voice.title,
-            updateTitle
-          ).catch(err => console.error('Failed to send voice update:', err));
+          if (supporter.phone) {
+            bigtos.sendVoiceUpdate(
+              supporter.phone,
+              supporter.firstName || 'Supporter',
+              voice.title ?? '',
+              updateTitle
+            ).catch(err => console.error('Failed to send voice update:', err));
+          }
         }
       }
 
@@ -2912,13 +2884,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const data = insertMedicalVoiceContactSchema.parse(req.body);
 
-      const [contact] = await db.insert(medicalVoiceContacts)
-        .values({
-          ...data,
-          voiceId: parseInt(id),
-        })
-        .returning();
-
+      const { insertAndFetch } = await import("./dbHelpers");
+      const contact = await insertAndFetch(db, medicalVoiceContacts, {
+        ...data,
+        voiceId: parseInt(id),
+      });
       res.json(contact);
     } catch (error) {
       console.error("Create contact error:", error);
@@ -2931,11 +2901,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { contactId } = req.params;
       const data = req.body;
 
-      const [contact] = await db.update(medicalVoiceContacts)
-        .set(data)
-        .where(eq(medicalVoiceContacts.id, parseInt(contactId)))
-        .returning();
-
+      await db.update(medicalVoiceContacts).set(data).where(eq(medicalVoiceContacts.id, parseInt(contactId)));
+      const [contact] = await db.select().from(medicalVoiceContacts).where(eq(medicalVoiceContacts.id, parseInt(contactId))).limit(1);
       res.json(contact);
     } catch (error) {
       console.error("Update contact error:", error);
@@ -2947,8 +2914,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { contactId } = req.params;
 
-      await db.delete(medicalVoiceContacts)
-        .where(eq(medicalVoiceContacts.id, parseInt(contactId)));
+      await db.delete(medicalVoiceContacts).where(eq(medicalVoiceContacts.id, parseInt(contactId)));
 
       res.json({ success: true });
     } catch (error) {
@@ -2975,7 +2941,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const voices = await db.select()
         .from(medicalVoices)
-        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .where(conditions.length > 0 ? and(...(conditions as any[])) : undefined)
         .orderBy(desc(medicalVoices.createdAt))
         .limit(parseInt(limit as string))
         .offset(offset);
@@ -2985,10 +2951,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         category ? eq(medicalVoices.category, category as string) : null
       ].filter(Boolean);
 
-      const [countResult] = await db
-        .select({ count: sql<number>`count(*)` })
+      const [countResult] = await db.select({ count: sql<number>`count(*)` })
         .from(medicalVoices)
-        .where(countConditions.length > 0 ? and(...countConditions) : undefined);
+        .where(countConditions.length > 0 ? and(...(countConditions as any[])) : undefined as undefined);
 
       res.json({
         voices,
@@ -3052,12 +3017,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const allSettings = await db.select().from(settings);
       
-      // Group by category
+      // Group by category (guard missing category)
       const grouped = allSettings.reduce((acc, setting) => {
-        if (!acc[setting.category]) {
-          acc[setting.category] = [];
+        const cat = setting.category ?? 'general';
+        if (!acc[cat]) {
+          acc[cat] = [];
         }
-        acc[setting.category].push(setting);
+        acc[cat].push(setting);
         return acc;
       }, {} as Record<string, typeof allSettings>);
       
@@ -3078,17 +3044,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Value is required" });
       }
       
-      const updated = await db
+      await db
         .update(settings)
         .set({ value, updatedAt: new Date() })
-        .where(eq(settings.key, key))
-        .returning();
-      
-      if (updated.length === 0) {
+        .where(eq(settings.key, key));
+
+      const [updated] = await db.select().from(settings).where(eq(settings.key, key)).limit(1);
+      if (!updated) {
         return res.status(404).json({ error: "Setting not found" });
       }
-      
-      res.json(updated[0]);
+      res.json(updated);
     } catch (error) {
       console.error("Update setting error:", error);
       res.status(500).json({ error: "Failed to update setting" });
@@ -3104,8 +3069,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: result.error.message });
       }
       
-      const created = await db.insert(settings).values(result.data).returning();
-      res.status(201).json(created[0]);
+  const { insertAndFetch } = await import("./dbHelpers");
+  const created = await insertAndFetch(db, settings, result.data);
+  res.status(201).json(created);
     } catch (error) {
       console.error("Create setting error:", error);
       res.status(500).json({ error: "Failed to create setting" });
@@ -3118,7 +3084,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/admin/payments/stats", requireAdmin, async (req, res) => {
     try {
       // Get payment status counts and revenue
-      const statusStats = await db.execute(sql`
+      const [statusStats] = await db.execute(sql`
         SELECT 
           payment_status,
           COUNT(*) as count,
@@ -3127,6 +3093,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         JOIN courses c ON e.course_id = c.id
         GROUP BY payment_status
       `);
+      const statusStatsRows = statusStats as unknown as Array<any>;
       
       // Initialize stats
       const stats = {
@@ -3142,7 +3109,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       // Process status stats
-      for (const row of statusStats.rows) {
+  for (const row of statusStatsRows) {
         const status = row.payment_status as string;
         const count = parseInt(row.count as string);
         const revenue = parseInt(row.revenue as string) || 0;
@@ -3190,26 +3157,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/admin/stats", requireAdmin, async (req, res) => {
     try {
       // Get user statistics
-      const userStatsResult = await db.execute(sql`
+      const [userStatsResult] = await db.execute(sql`
         SELECT 
           COUNT(*) as total_users,
           COUNT(CASE WHEN role = 'doctor' THEN 1 END) as total_doctors,
           COUNT(CASE WHEN role = 'student' THEN 1 END) as total_students
         FROM users
       `);
-      const userStats = userStatsResult.rows[0];
+      const userStats = (userStatsResult as unknown as any[])[0] || {};
 
       // Get job statistics
-      const jobStatsResult = await db.execute(sql`
+      const [jobStatsResult] = await db.execute(sql`
         SELECT COUNT(*) as active_jobs FROM jobs WHERE is_active = true
       `);
-      const jobStats = jobStatsResult.rows[0];
+      const jobStats = (jobStatsResult as unknown as any[])[0] || {};
 
       // Get course statistics
-      const courseStatsResult = await db.execute(sql`
+      const [courseStatsResult] = await db.execute(sql`
         SELECT COUNT(*) as total_courses FROM courses
       `);
-      const courseStats = courseStatsResult.rows[0];
+      const courseStats = (courseStatsResult as unknown as any[])[0] || {};
 
       res.json({
         totalUsers: parseInt(userStats.total_users as string) || 0,
@@ -3248,15 +3215,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updateData.email = validated.email === '' ? null : validated.email;
       }
       
-      const [updatedUser] = await db.update(users)
-        .set(updateData)
-        .where(eq(users.id, userId))
-        .returning();
-      
+      await db.update(users).set(updateData).where(eq(users.id, userId));
+      const [updatedUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
       if (!updatedUser) {
         return res.status(404).json({ error: "User not found" });
       }
-      
       res.json(updatedUser);
     } catch (error) {
       console.error("Update user error:", error);
@@ -3285,7 +3248,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await db.delete(quizAttempts).where(eq(quizAttempts.userId, userId));
       await db.delete(quizResponses).where(eq(quizResponses.userId, userId));
       await db.delete(quizLeaderboard).where(eq(quizLeaderboard.userId, userId));
-      await db.delete(researchServiceRequests).where(eq(researchServiceRequests.userId, userId));
+  await db.delete(researchRequests).where(eq(researchRequests.userId, userId));
       await db.delete(aiToolRequests).where(eq(aiToolRequests.userId, userId));
       await db.delete(courseCertificates).where(eq(courseCertificates.userId, userId));
       await db.delete(certificates).where(eq(certificates.userId, userId));
@@ -3299,15 +3262,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await db.delete(enrollments).where(eq(enrollments.userId, userId));
       
       // Finally delete the user
-      const [deletedUser] = await db.delete(users)
-        .where(eq(users.id, userId))
-        .returning();
-      
-      if (!deletedUser) {
+      const deletedRes: any = await db.delete(users).where(eq(users.id, userId)).execute();
+      if (!deletedRes || !deletedRes.affectedRows) {
         return res.status(404).json({ error: "User not found" });
       }
-      
-      res.json({ success: true, message: "User and all associated data deleted successfully" });
+      res.json({ success: true, message: "User and all associated data deleted successfully", deletedUserId: userId });
     } catch (error) {
       console.error("Delete user error:", error);
       res.status(500).json({ error: "Failed to delete user" });
@@ -3352,8 +3311,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           image: row.image || null,
         };
 
-        const [inserted] = await db.insert(hospitals).values(hospitalData).returning();
-        insertedHospitals.push(inserted);
+  const { insertAndFetch } = await import("./dbHelpers");
+  const inserted = await insertAndFetch(db, hospitals, hospitalData);
+    insertedHospitals.push(inserted);
       }
 
       res.json({ 
@@ -3532,8 +3492,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: result.error.message });
       }
 
-      const created = await db.insert(npaTemplates).values(result.data).returning();
-      res.status(201).json(created[0]);
+  const { insertAndFetch } = await import("./dbHelpers");
+  const created = await insertAndFetch(db, npaTemplates, result.data);
+  res.status(201).json(created);
     } catch (error) {
       console.error("Create NPA template error:", error);
       res.status(500).json({ error: "Failed to create template" });
@@ -3549,17 +3510,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: result.error.message });
       }
 
-      const updated = await db
-        .update(npaTemplates)
-        .set({ ...result.data, updatedAt: new Date() })
-        .where(eq(npaTemplates.id, parseInt(id)))
-        .returning();
-
-      if (updated.length === 0) {
+      await db.update(npaTemplates).set({ ...result.data, updatedAt: new Date() }).where(eq(npaTemplates.id, parseInt(id)));
+      const [updated] = await db.select().from(npaTemplates).where(eq(npaTemplates.id, parseInt(id))).limit(1);
+      if (!updated) {
         return res.status(404).json({ error: "Template not found" });
       }
-
-      res.json(updated[0]);
+      res.json(updated);
     } catch (error) {
       console.error("Update NPA template error:", error);
       res.status(500).json({ error: "Failed to update template" });
@@ -3570,13 +3526,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/admin/npa/templates/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const deleted = await db.delete(npaTemplates).where(eq(npaTemplates.id, parseInt(id))).returning();
-
-      if (deleted.length === 0) {
+      const deletedRes: any = await db.delete(npaTemplates).where(eq(npaTemplates.id, parseInt(id))).execute();
+      if (!deletedRes || !deletedRes.affectedRows) {
         return res.status(404).json({ error: "Template not found" });
       }
-
-      res.json({ success: true });
+      res.json({ success: true, deletedTemplateId: parseInt(id) });
     } catch (error) {
       console.error("Delete NPA template error:", error);
       res.status(500).json({ error: "Failed to delete template" });
@@ -3601,7 +3555,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .from(npaAutomation)
         .leftJoin(users, eq(npaAutomation.userId, users.id))
         .leftJoin(doctorProfiles, eq(users.id, doctorProfiles.userId))
-        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .where(conditions.length > 0 ? and(...(conditions as any[])) : undefined)
         .orderBy(desc(npaAutomation.createdAt))
         .limit(parseInt(limit as string))
         .offset(parseInt(offset as string));
@@ -3609,7 +3563,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [countResult] = await db
         .select({ count: sql<number>`count(*)` })
         .from(npaAutomation)
-        .where(conditions.length > 0 ? and(...conditions) : undefined);
+        .where(conditions.length > 0 ? and(...(conditions as any[])) : undefined);
 
       res.json({
         logs,
@@ -3696,7 +3650,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const recentLogs = await db
         .select()
         .from(npaAutomation)
-        .where(eq(npaAutomation.optInId, optIn.id))
+        .where(eq(npaAutomation.optInId, String(optIn.id)))
         .orderBy(desc(npaAutomation.createdAt))
         .limit(5);
 
@@ -3750,8 +3704,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: result.error.message });
       }
 
-      const created = await db.insert(npaOptIns).values(result.data).returning();
-      res.status(201).json(created[0]);
+  const { insertAndFetch } = await import("./dbHelpers");
+  const created = await insertAndFetch(db, npaOptIns, result.data);
+  res.status(201).json(created);
     } catch (error) {
       console.error("NPA opt-in error:", error);
       res.status(500).json({ error: "Failed to opt-in" });
@@ -3763,23 +3718,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const authenticatedUser = getAuthenticatedUser(req);
 
-      const updated = await db
-        .update(npaOptIns)
-        .set({
-          preferredDay: req.body.preferredDay,
-          deliveryEmail: req.body.deliveryEmail,
-          deliveryWhatsapp: req.body.deliveryWhatsapp,
-          isActive: req.body.isActive,
-          updatedAt: new Date(),
-        })
-        .where(eq(npaOptIns.userId, authenticatedUser.id))
-        .returning();
+      await db.update(npaOptIns).set({
+        preferredDay: req.body.preferredDay,
+        deliveryEmail: req.body.deliveryEmail,
+        deliveryWhatsapp: req.body.deliveryWhatsapp,
+        isActive: req.body.isActive,
+      }).where(eq(npaOptIns.userId, authenticatedUser.id));
 
-      if (updated.length === 0) {
+      const [updated] = await db.select().from(npaOptIns).where(eq(npaOptIns.userId, authenticatedUser.id)).limit(1);
+      if (!updated) {
         return res.status(404).json({ error: "Opt-in not found" });
       }
-
-      res.json(updated[0]);
+      res.json(updated);
     } catch (error) {
       console.error("Update NPA opt-in error:", error);
       res.status(500).json({ error: "Failed to update preferences" });
@@ -3791,16 +3741,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const authenticatedUser = getAuthenticatedUser(req);
 
-      const deleted = await db
-        .delete(npaOptIns)
-        .where(eq(npaOptIns.userId, authenticatedUser.id))
-        .returning();
-
-      if (deleted.length === 0) {
+      const deletedRes: any = await db.delete(npaOptIns).where(eq(npaOptIns.userId, authenticatedUser.id)).execute();
+      if (!deletedRes || !deletedRes.affectedRows) {
         return res.status(404).json({ error: "Opt-in not found" });
       }
-
-      res.json({ success: true });
+      res.json({ success: true, deletedOptInId: authenticatedUser.id });
     } catch (error) {
       console.error("NPA opt-out error:", error);
       res.status(500).json({ error: "Failed to opt-out" });
@@ -3828,6 +3773,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== WEBSOCKET SERVER FOR REAL-TIME QUIZ =====
   const wss = new WebSocketServer({ noServer: true });
 
+  /*
   // Handle WebSocket upgrade with session verification
   httpServer.on('upgrade', (req: IncomingMessage, socket, head) => {
     if (req.url !== '/ws/quiz') {
@@ -3862,6 +3808,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     });
   });
+  */
 
   // Store quiz rooms and participants
   interface QuizClient {

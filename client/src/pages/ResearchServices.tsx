@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import type { ResearchRequest } from '@/types/models';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { getAuthenticatedUserId } from '@/lib/auth';
@@ -27,7 +28,7 @@ export default function ResearchServices() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  const { data: requests, isLoading } = useQuery({
+  const { data: requests, isLoading } = useQuery<ResearchRequest[]>({
     queryKey: ['/api/research-services/requests'],
   });
 

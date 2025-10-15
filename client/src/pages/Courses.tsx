@@ -3,10 +3,11 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { BookOpen, Clock, Users, Award } from 'lucide-react';
+import type { Course } from '@/types/models';
 import { Link } from 'wouter';
 
 export default function Courses() {
-  const { data: courses, isLoading } = useQuery({
+  const { data: courses, isLoading } = useQuery<Course[]>({
     queryKey: ['/api/courses'],
   });
 
@@ -69,10 +70,10 @@ export default function Courses() {
                         <span>{course.duration} hours</span>
                       </div>
                     )}
-                    {course.enrollmentCount > 0 && (
+                    {(course.enrollmentCount || 0) > 0 && (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Users className="w-4 h-4" />
-                        <span>{course.enrollmentCount} enrolled</span>
+                        <span>{course.enrollmentCount || 0} enrolled</span>
                       </div>
                     )}
                   </div>

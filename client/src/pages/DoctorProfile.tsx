@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useRoute } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
+import type { DoctorProfile as DoctorProfileModel } from '../types/models';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -26,7 +27,7 @@ export default function DoctorProfile() {
   const [, params] = useRoute('/doctor/:id');
   const doctorId = params?.id;
 
-  const { data: doctor, isLoading } = useQuery({
+  const { data: doctor, isLoading } = useQuery<DoctorProfileModel | null>({
     queryKey: [`/api/doctors/${doctorId}`],
     enabled: !!doctorId,
   });

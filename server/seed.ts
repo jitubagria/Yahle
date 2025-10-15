@@ -1,5 +1,6 @@
 import { db } from "./db";
-import { users, doctorProfiles, hospitals, courses, quizzes, quizQuestions, jobs, masterclasses } from "@shared/schema";
+import { users, courses, quizzes, quizQuestions } from "../drizzle/schema";
+import { doctorProfiles, hospitals, jobs, masterclasses } from "../drizzle/schema";
 
 const specialties = [
   "Cardiology", "Neurology", "Orthopedics", "Pediatrics", "Dermatology",
@@ -44,13 +45,13 @@ async function seed() {
   // Create users only if needed
   if (existingUsers.length < 25) {
     console.log("Creating users...");
-    for (let i = existingUsers.length + 1; i <= 25; i++) {
-      const [user] = await db.insert(users).values({
+      for (let i = existingUsers.length + 1; i <= 25; i++) {
+      const userInsertRes: any = await db.insert(users).values({
         phone: `98${String(10000000 + i).slice(0, 8)}`,
         role: i <= 20 ? "doctor" : "student",
         isVerified: true,
-      }).returning();
-      userIds.push(user.id);
+      }).execute();
+      userIds.push(userInsertRes.insertId as number);
     }
   } else {
     console.log("Users already exist, skipping...");
@@ -62,20 +63,22 @@ async function seed() {
   
   if (existingHospitals.length < 10) {
     console.log("Creating hospitals...");
-    for (let i = existingHospitals.length; i < 10; i++) {
-      const [hospital] = await db.insert(hospitals).values({
-        name: hospitalNames[i],
-        location: cities[i % cities.length],
-        type: i % 2 === 0 ? "Government" : "Private",
-        beds: 100 + Math.floor(Math.random() * 400),
-        specialties: [
-          specialties[i % specialties.length],
-          specialties[(i + 1) % specialties.length],
-          specialties[(i + 2) % specialties.length]
-        ],
-      }).returning();
-      hospitalIds.push(hospital.id);
-    }
+      for (let i = existingHospitals.length; i < 10; i++) {
+        const hospitalRes: any = await db.insert(hospitals).values({
+          name: hospitalNames[i],
+          // map earlier `location` usage to `city` (schema uses city)
+          city: cities[i % cities.length],
+          // store the type information in description for now (schema has no `type` column)
+          description: i % 2 === 0 ? "Government" : "Private",
+          beds: 100 + Math.floor(Math.random() * 400),
+          specialties: JSON.stringify([
+            specialties[i % specialties.length],
+            specialties[(i + 1) % specialties.length],
+            specialties[(i + 2) % specialties.length]
+          ]),
+        }).execute();
+        hospitalIds.push(hospitalRes.insertId as number);
+      }
   } else {
     console.log("Hospitals already exist, skipping...");
   }
@@ -89,41 +92,35 @@ async function seed() {
                       "Suresh", "Meena", "Deepak", "Lakshmi", "Ravi", "Divya", "Karthik", "Pooja", "Sandeep", "Nisha"];
   const lastNames = ["Sharma", "Patel", "Singh", "Kumar", "Gupta", "Reddy", "Nair", "Mehta", "Joshi", "Iyer"];
 
-  for (let i = 0; i < 20; i++) {
-    await db.insert(doctorProfiles).values({
-      userId: userIds[i],
-      firstName: firstNames[i],
-      lastName: lastNames[i % lastNames.length],
-      email: `dr.${firstNames[i].toLowerCase()}.${lastNames[i % lastNames.length].toLowerCase()}@example.com`,
-      dob: new Date(1975 + Math.floor(Math.random() * 25), Math.floor(Math.random() * 12), 1),
-      gender: i % 2 === 0 ? "male" : "female",
-      marriatialstatus: i % 3 === 0 ? "married" : "single",
-      professionaldegree: degrees[i % degrees.length],
-      userMobile: `98${String(10000000 + i).slice(0, 8)}`,
-      
-      // Academic info
-      ugCollege: collegeNames[i % collegeNames.length],
-      ugLocation: cities[i % cities.length],
-      ugAdmissionYear: String(1995 + i),
-      pgBranch: specialties[i % specialties.length],
-      pgCollege: collegeNames[(i + 2) % collegeNames.length],
-      pgLocation: cities[(i + 1) % cities.length],
-      pgAdmissionYear: String(2000 + i),
-      
-      // Job info
-      jobSector: i % 3 === 0 ? "Government" : "Private",
-      jobCountry: "India",
-      jobState: states[i % states.length],
-      jobCity: cities[i % cities.length],
-      jobPrivateHospital: hospitalNames[i % hospitalNames.length],
-      
-      // Profile flags
-      profileGeneralFlag: true,
-      profileContactFlag: true,
-      profileAcademicFlag: true,
-      profileJobFlag: true,
-    });
-  }
+    for (let i = 0; i < 20; i++) {
+      await db.insert(doctorProfiles).values({
+        userId: userIds[i],
+        firstName: firstNames[i],
+        lastName: lastNames[i % lastNames.length],
+        email: `dr.${firstNames[i].toLowerCase()}.${lastNames[i % lastNames.length].toLowerCase()}@example.com`,
+        dob: new Date(1975 + Math.floor(Math.random() * 25), Math.floor(Math.random() * 12), 1).toISOString(),
+        gender: i % 2 === 0 ? "male" : "female",
+        marriatialstatus: i % 3 === 0 ? "married" : "single",
+        professionaldegree: degrees[i % degrees.length],
+        userMobile: `98${String(10000000 + i).slice(0, 8)}`,
+
+        // Academic info
+        ugCollege: collegeNames[i % collegeNames.length],
+        ugLocation: cities[i % cities.length],
+        ugAdmissionYear: String(1995 + i),
+        pgBranch: specialties[i % specialties.length],
+        pgCollege: collegeNames[(i + 2) % collegeNames.length],
+        pgLocation: cities[(i + 1) % cities.length],
+        pgAdmissionYear: String(2000 + i),
+
+        // Job info
+        jobSector: i % 3 === 0 ? "Government" : "Private",
+        jobCountry: "India",
+        jobState: states[i % states.length],
+        jobCity: cities[i % cities.length],
+        jobPrivateHospital: hospitalNames[i % hospitalNames.length],
+      });
+    }
   }
 
   // Shared data for courses and masterclasses
@@ -146,17 +143,19 @@ async function seed() {
     { title: "Medical Ethics", desc: "Ethical considerations in modern medicine" },
   ];
   const courseIds: number[] = [];
-  for (let i = 0; i < courseTopics.length; i++) {
-    const [course] = await db.insert(courses).values({
-      title: courseTopics[i].title,
-      description: courseTopics[i].desc,
-      instructor: instructorNames[i],
-      duration: 20 + Math.floor(Math.random() * 40), // hours
-      price: 5000 + Math.floor(Math.random() * 15000),
-      enrollmentCount: Math.floor(Math.random() * 500),
-    }).returning();
-    courseIds.push(course.id);
-  }
+    for (let i = 0; i < courseTopics.length; i++) {
+      const priceValue = 5000 + Math.floor(Math.random() * 15000);
+      const courseRes: any = await db.insert(courses).values({
+        title: courseTopics[i].title,
+        description: courseTopics[i].desc,
+        // schema doesn't have `instructor` column on courses; set createdBy to a valid user
+        createdBy: userIds[0] || null,
+        duration: 20 + Math.floor(Math.random() * 40), // hours
+        price: priceValue.toFixed(2),
+        enrollmentCount: Math.floor(Math.random() * 500),
+      }).execute();
+      courseIds.push(courseRes.insertId as number);
+    }
   }
 
   // Create masterclasses (check if they exist first)
@@ -178,16 +177,16 @@ async function seed() {
     eventDate.setDate(eventDate.getDate() + 7 + i * 7);
     eventDate.setHours(10 + i, 0, 0); // Set time to 10 AM, 11 AM, etc.
     
-    await db.insert(masterclasses).values({
-      title: masterclassTopics[i],
-      description: `Expert-led ${masterclassTopics[i].toLowerCase()} with renowned specialists`,
-      instructor: instructorNames[i],
-      eventDate: eventDate,
-      duration: 120 + Math.floor(Math.random() * 60), // 120-180 minutes
-      price: 2000 + Math.floor(Math.random() * 3000),
-      maxParticipants: 50 + Math.floor(Math.random() * 50),
-      currentParticipants: Math.floor(Math.random() * 30),
-    });
+      await db.insert(masterclasses).values({
+        title: masterclassTopics[i],
+        description: `Expert-led ${masterclassTopics[i].toLowerCase()} with renowned specialists`,
+        instructor: instructorNames[i],
+        eventDate: eventDate,
+        duration: 120 + Math.floor(Math.random() * 60), // 120-180 minutes
+        price: (2000 + Math.floor(Math.random() * 3000)).toFixed(2),
+        maxParticipants: 50 + Math.floor(Math.random() * 50),
+        currentParticipants: Math.floor(Math.random() * 30),
+      }).execute();
   }
   }
 
@@ -232,9 +231,10 @@ async function seed() {
     ]
   };
 
-  for (let i = 0; i < quizTopics.length; i++) {
+    for (let i = 0; i < quizTopics.length; i++) {
     const topic = quizTopics[i];
-    const [quiz] = await db.insert(quizzes).values({
+    const { insertAndFetch } = await import('./dbHelpers');
+    const quizRow = await insertAndFetch(db, quizzes, {
       title: topic.title,
       description: `Test your knowledge in ${topic.specialty}`,
       category: topic.specialty,
@@ -243,19 +243,18 @@ async function seed() {
       passingScore: 60,
       price: 500 + Math.floor(Math.random() * 1000),
       attemptsCount: Math.floor(Math.random() * 200),
-    }).returning();
+    });
+    const quizId = quizRow.id;
 
     const questions = allQuestions[topic.specialty].slice(0, topic.questionsCount);
     
-    for (let j = 0; j < questions.length; j++) {
+      for (let j = 0; j < questions.length; j++) {
       const q = questions[j];
       await db.insert(quizQuestions).values({
-        quizId: quiz.id,
+        quizId: quizId as number,
         questionText: q.text,
-        optionA: q.optionA,
-        optionB: q.optionB,
-        optionC: q.optionC,
-        optionD: q.optionD,
+        // schema expects a JSON/text `options` column; store as JSON string
+        options: JSON.stringify([q.optionA, q.optionB, q.optionC, q.optionD]),
         correctOption: q.correctOption,
         orderIndex: j + 1,
       });
@@ -277,7 +276,7 @@ async function seed() {
     "Urologist", "Nephrologist", "Gastroenterologist", "Endocrinologist"
   ];
 
-  for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 20; i++) {
     await db.insert(jobs).values({
       title: jobTitles[i],
       hospitalName: hospitalNames[i % hospitalNames.length],
@@ -291,7 +290,7 @@ async function seed() {
       postedDate: new Date(Date.now() - Math.floor(Math.random() * 30) * 24 * 60 * 60 * 1000),
       isActive: true,
       applicationCount: Math.floor(Math.random() * 50),
-    });
+    }).execute();
   }
   }
 
@@ -299,12 +298,18 @@ async function seed() {
   console.log(`Checked/created ${userIds.length} users`);
   console.log(`Checked/created ${hospitalIds.length} hospitals`);
   
-  const [doctorCount] = await db.execute(`SELECT COUNT(*) as count FROM doctor_profiles`);
-  const [courseCount] = await db.execute(`SELECT COUNT(*) as count FROM courses`);
-  const [masterclassCount] = await db.execute(`SELECT COUNT(*) as count FROM masterclasses`);
-  const [quizCount] = await db.execute(`SELECT COUNT(*) as count FROM quizzes`);
-  const [jobCount] = await db.execute(`SELECT COUNT(*) as count FROM jobs`);
-  
+  const [doctorCountRows]: any = await db.execute(`SELECT COUNT(*) as count FROM doctor_profiles`);
+  const [courseCountRows]: any = await db.execute(`SELECT COUNT(*) as count FROM courses`);
+  const [masterclassCountRows]: any = await db.execute(`SELECT COUNT(*) as count FROM masterclasses`);
+  const [quizCountRows]: any = await db.execute(`SELECT COUNT(*) as count FROM quizzes`);
+  const [jobCountRows]: any = await db.execute(`SELECT COUNT(*) as count FROM jobs`);
+
+  const doctorCount = (doctorCountRows as unknown as any[])[0];
+  const courseCount = (courseCountRows as unknown as any[])[0];
+  const masterclassCount = (masterclassCountRows as unknown as any[])[0];
+  const quizCount = (quizCountRows as unknown as any[])[0];
+  const jobCount = (jobCountRows as unknown as any[])[0];
+
   console.log(`Total doctor profiles: ${doctorCount.count}`);
   console.log(`Total courses: ${courseCount.count}`);
   console.log(`Total masterclasses: ${masterclassCount.count}`);

@@ -1,14 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import { db } from './db';
-import { users } from '@shared/schema';
+import { users } from '../drizzle/schema';
 import { eq } from 'drizzle-orm';
 
-// Extend session type to include userId
-declare module 'express-session' {
-  interface SessionData {
-    userId: number;
-  }
-}
+// Session augmentation is provided in `types/express-session.d.ts` (global types)
 
 /**
  * Authentication middleware that validates user session

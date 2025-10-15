@@ -7,6 +7,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Search, MapPin, Stethoscope, Filter } from 'lucide-react';
 import { Link } from 'wouter';
+import type { DoctorProfile } from '@/types/models';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function DoctorDirectory() {
@@ -17,7 +18,7 @@ export default function DoctorDirectory() {
   const [appliedLocation, setAppliedLocation] = useState('');
   const [appliedSpecialty, setAppliedSpecialty] = useState('');
 
-  const { data: doctors, isLoading } = useQuery({
+  const { data: doctors, isLoading } = useQuery<DoctorProfile[]>({
     queryKey: ['/api/doctors', appliedSearchTerm, appliedLocation, appliedSpecialty],
   });
 
@@ -136,7 +137,7 @@ export default function DoctorDirectory() {
             </p>
             
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {doctors.map((doctor: any) => (
+              {doctors.map((doctor: DoctorProfile) => (
                 <Link key={doctor.id} href={`/doctor/${doctor.id}`}>
                   <Card className="h-full hover:shadow-lg transition-all hover-elevate cursor-pointer" data-testid={`card-doctor-${doctor.id}`}>
                     <CardContent className="p-6">

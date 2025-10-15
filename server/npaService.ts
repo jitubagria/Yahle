@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { npaOptIns, npaTemplates, npaAutomation, doctorProfiles, users } from "@shared/schema";
+import { npaOptIns, npaTemplates, npaAutomation, users, doctorProfiles } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 import { bigtosService } from "./bigtos";
 import { Storage } from '@google-cloud/storage';
@@ -117,23 +117,29 @@ export class NPAService {
         throw new Error('Opt-in not found or inactive');
       }
 
-      // Get doctor profile
-      const [doctorProfile] = await db
-        .select()
-        .from(doctorProfiles)
-        .where(eq(doctorProfiles.id, optIn.doctorProfileId))
-        .limit(1);
+      // Get doctor profile (guard nullable doctorProfileId)
+      let doctorProfile: any = null;
+      if (optIn.doctorProfileId != null) {
+        [doctorProfile] = await db
+          .select()
+          .from(doctorProfiles)
+          .where(eq(doctorProfiles.id, optIn.doctorProfileId))
+          .limit(1);
+      }
 
       if (!doctorProfile) {
         throw new Error('Doctor profile not found');
       }
 
-      // Get user details
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, optIn.userId))
-        .limit(1);
+      // Get user details (guard nullable userId)
+      let user: any = null;
+      if (optIn.userId != null) {
+        [user] = await db
+          .select()
+          .from(users)
+          .where(eq(users.id, optIn.userId))
+          .limit(1);
+      }
 
       if (!user) {
         throw new Error('User not found');
@@ -175,8 +181,9 @@ export class NPAService {
         doctorProfile.lastName
       ].filter(Boolean).join(' ') || user.email || 'Doctor';
 
-      // Replace placeholders in template
-      const htmlContent = this.replacePlaceholders(template.htmlTemplate, {
+      // Replace placeholders in template (guard htmlTemplate)
+      const templateHtml = template.htmlTemplate ?? '';
+      const htmlContent = this.replacePlaceholders(templateHtml, {
         name: doctorName,
         designation: doctorProfile.professionaldegree || 'Medical Professional',
         regno: `DOC${String(optIn.userId).padStart(6, '0')}`, // Generate registration number from user ID
@@ -205,17 +212,16 @@ export class NPAService {
         );
       }
 
-      // Log the automation
+      // Log the automation (cast to any to avoid strict insert type mismatches)
       await db.insert(npaAutomation).values({
-        optInId: optIn.id,
+        optInId: String(optIn.id),
         templateUsed: template.id,
         userId: optIn.userId,
         month: month,
-        year: year,
         status: 'sent',
         generatedPdfUrl: certificateUrl,
         sentDate: new Date(),
-      });
+      } as any).execute();
 
       console.log(`NPA certificate generated and sent for opt-in ${optInId}`);
 
@@ -243,14 +249,13 @@ export class NPAService {
           .limit(1);
         
         await db.insert(npaAutomation).values({
-          optInId: optInId,
+          optInId: String(optInId),
           templateUsed: null,
           userId: optIn?.userId || 0,
           month: monthNames[now.getMonth()],
-          year: now.getFullYear(),
           status: 'error',
           lastError: errorMessage,
-        });
+        } as any).execute();
       } catch (logError) {
         console.error('Failed to log NPA error:', logError);
       }
@@ -274,13 +279,13 @@ export class NPAService {
 
     const today = new Date().getDate(); // Day of month (1-31)
 
-    // Get all active opt-ins that are due today
+    // Get all active opt-ins that are due today (preferredDay stored as string)
     const optIns = await db
       .select()
       .from(npaOptIns)
       .where(and(
         eq(npaOptIns.isActive, true),
-        eq(npaOptIns.preferredDay, today)
+        eq(npaOptIns.preferredDay, String(today))
       ));
 
     console.log(`Found ${optIns.length} opt-ins scheduled for day ${today}`);

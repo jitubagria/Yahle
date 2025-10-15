@@ -1,0 +1,117 @@
+﻿
+> rest-express@1.0.0 check
+> tsc
+
+client/src/pages/AdminDashboard.tsx(45,43): error TS2339: Property 'totalUsers' does not exist on type '{}'.
+client/src/pages/AdminDashboard.tsx(46,39): error TS2339: Property 'totalDoctors' does not exist on type '{}'.
+client/src/pages/AdminDashboard.tsx(47,40): error TS2339: Property 'totalStudents' does not exist on type '{}'.
+client/src/pages/AdminDashboard.tsx(48,43): error TS2339: Property 'activeJobs' does not exist on type '{}'.
+client/src/pages/Courses.tsx(38,32): error TS2339: Property 'length' does not exist on type '{}'.
+client/src/pages/Courses.tsx(40,22): error TS2339: Property 'map' does not exist on type '{}'.
+client/src/pages/DoctorDirectory.tsx(132,32): error TS2339: Property 'length' does not exist on type '{}'.
+client/src/pages/DoctorDirectory.tsx(135,24): error TS2339: Property 'length' does not exist on type '{}'.
+client/src/pages/DoctorDirectory.tsx(135,47): error TS2339: Property 'length' does not exist on type '{}'.
+client/src/pages/DoctorDirectory.tsx(139,24): error TS2339: Property 'map' does not exist on type '{}'.
+client/src/pages/DoctorProfileEdit.tsx(121,17): error TS2339: Property 'uploadURL' does not exist on type 'Response'.
+client/src/pages/DoctorProfileEdit.tsx(121,28): error TS2339: Property 'objectPath' does not exist on type 'Response'.
+client/src/pages/Jobs.tsx(217,26): error TS2339: Property 'length' does not exist on type '{}'.
+client/src/pages/Jobs.tsx(220,21): error TS2339: Property 'length' does not exist on type '{}'.
+client/src/pages/Jobs.tsx(220,38): error TS2339: Property 'length' does not exist on type '{}'.
+client/src/pages/Jobs.tsx(224,21): error TS2339: Property 'map' does not exist on type '{}'.
+client/src/pages/ResearchServices.tsx(224,36): error TS2339: Property 'length' does not exist on type '{}'.
+client/src/pages/ResearchServices.tsx(226,25): error TS2339: Property 'map' does not exist on type '{}'.
+server/routes.ts(141,13): error TS2345: Argument of type 'SQL<unknown> | undefined' is not assignable to parameter of type 'SQL<unknown>'.
+  Type 'undefined' is not assignable to type 'SQL<unknown>'.
+server/routes.ts(150,13): error TS2345: Argument of type 'SQL<unknown> | undefined' is not assignable to parameter of type 'SQL<unknown>'.
+  Type 'undefined' is not assignable to type 'SQL<unknown>'.
+server/routes.ts(161,7): error TS2740: Type 'Omit<MySqlSelectBase<"doctor_profiles", { id: MySqlColumn<{ name: "id"; tableName: "doctor_profiles"; dataType: "number"; columnType: "MySqlSerial"; data: number; driverParam: number; notNull: true; hasDefault: true; ... 6 more ...; generated: undefined; }, {}, {}>; ... 54 more ...; updatedAt: MySqlColumn<...>; }, ....' is missing the following properties from type 'MySqlSelectBase<"doctor_profiles", { id: MySqlColumn<{ name: "id"; tableName: "doctor_profiles"; dataType: "number"; columnType: "MySqlSerial"; data: number; driverParam: number; notNull: true; hasDefault: true; isPrimaryKey: true; ... 5 more ...; generated: undefined; }, {}, {}>; ... 54 more ...; updatedAt: MySqlCo...': createIterator, config, joinsNotNullableMap, tableName, and 6 more.
+server/routes.ts(462,14): error TS2345: Argument of type '{ updatedAt: Date; status?: "published" | "draft" | "archived" | undefined; title?: string | undefined; description?: string | undefined; category?: string | undefined; duration?: string | undefined; ... 8 more ...; learningObjectives?: string[] | undefined; }' is not assignable to parameter of type '{ title?: string | SQL<unknown> | null | undefined; description?: string | SQL<unknown> | null | undefined; duration?: number | SQL<unknown> | null | undefined; id?: number | SQL<unknown> | undefined; ... 11 more ...; createdBy?: number | ... 2 more ... | undefined; }'.
+  Types of property 'duration' are incompatible.
+    Type 'string | undefined' is not assignable to type 'number | SQL<unknown> | null | undefined'.
+      Type 'string' is not assignable to type 'number | SQL<unknown> | null | undefined'.
+server/routes.ts(850,74): error TS2345: Argument of type 'string | null' is not assignable to parameter of type 'string'.
+  Type 'null' is not assignable to type 'string'.
+server/routes.ts(1431,14): error TS2345: Argument of type '{ updatedAt: Date; type?: "free" | "paid" | "live" | "practice" | undefined; status?: "completed" | "draft" | "archived" | "active" | undefined; title?: string | undefined; description?: string | undefined; ... 10 more ...; endTime?: string | ... 1 more ... | undefined; }' is not assignable to parameter of type '{ title?: string | SQL<unknown> | null | undefined; description?: string | SQL<unknown> | null | undefined; duration?: number | SQL<unknown> | null | undefined; id?: number | SQL<unknown> | undefined; ... 6 more ...; updatedAt?: Date | ... 2 more ... | undefined; }'.
+  Types of property 'startTime' are incompatible.
+    Type 'string | Date | undefined' is not assignable to type 'Date | SQL<unknown> | null | undefined'.
+      Type 'string' is not assignable to type 'Date | SQL<unknown> | null | undefined'.
+server/routes.ts(1552,24): error TS2352: Conversion of type 'ResultSetHeader' to type 'any[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type 'ResultSetHeader' is missing the following properties from type 'any[]': length, pop, push, concat, and 35 more.
+server/routes.ts(1587,16): error TS2353: Object literal may only specify known properties, and 'status' does not exist in type '{ title?: string | SQL<unknown> | null | undefined; description?: string | SQL<unknown> | null | undefined; duration?: number | SQL<unknown> | null | undefined; id?: number | SQL<unknown> | undefined; ... 6 more ...; updatedAt?: Date | ... 2 more ... | undefined; }'.
+server/routes.ts(1628,50): error TS18047: 'result.totalScore' is possibly 'null'.
+server/routes.ts(1657,23): error TS2339: Property 'where' does not exist on type 'Omit<MySqlSelectBase<"jobs", { id: MySqlColumn<{ name: "id"; tableName: "jobs"; dataType: "number"; columnType: "MySqlSerial"; data: number; driverParam: number; notNull: true; hasDefault: true; isPrimaryKey: true; isAutoincrement: true; ... 4 more ...; generated: undefined; }, {}, {}>; ... 13 more ...; applicationC...'.
+server/routes.ts(1789,11): error TS18047: 'masterclass.currentParticipants' is possibly 'null'.
+server/routes.ts(1800,37): error TS18047: 'masterclass.currentParticipants' is possibly 'null'.
+server/routes.ts(1816,11): error TS2322: Type 'string | null' is not assignable to type 'string'.
+  Type 'null' is not assignable to type 'string'.
+server/routes.ts(1828,76): error TS2345: Argument of type 'string | null' is not assignable to parameter of type 'string'.
+  Type 'null' is not assignable to type 'string'.
+server/routes.ts(1934,3): error TS2740: Type 'Omit<MySqlSelectBase<"research_requests", { id: MySqlColumn<{ name: "id"; tableName: "research_requests"; dataType: "number"; columnType: "MySqlSerial"; data: number; driverParam: number; notNull: true; hasDefault: true; ... 6 more ...; generated: undefined; }, {}, {}>; ... 4 more ...; createdAt: MySqlColumn<...>; }...' is missing the following properties from type 'MySqlSelectBase<"research_requests", { id: MySqlColumn<{ name: "id"; tableName: "research_requests"; dataType: "number"; columnType: "MySqlSerial"; data: number; driverParam: number; notNull: true; hasDefault: true; ... 6 more ...; generated: undefined; }, {}, {}>; ... 4 more ...; createdAt: MySqlColumn<...>; }, ......': createIterator, config, joinsNotNullableMap, tableName, and 6 more.
+server/routes.ts(1988,39): error TS2339: Property 'serviceType' does not exist on type 'MySqlTableWithColumns<{ name: "research_requests"; schema: undefined; columns: { id: MySqlColumn<{ name: "id"; tableName: "research_requests"; dataType: "number"; columnType: "MySqlSerial"; data: number; driverParam: number; ... 8 more ...; generated: undefined; }, {}, {}>; ... 4 more ...; createdAt: MySqlColumn<......'.
+server/routes.ts(2007,11): error TS2345: Argument of type 'string | null' is not assignable to parameter of type 'string'.
+  Type 'null' is not assignable to type 'string'.
+server/routes.ts(2436,20): error TS2345: Argument of type 'SQL<unknown> | null | undefined' is not assignable to parameter of type 'SQLWrapper | undefined'.
+  Type 'null' is not assignable to type 'SQLWrapper | undefined'.
+server/routes.ts(2453,20): error TS2345: Argument of type 'SQL<unknown> | null' is not assignable to parameter of type 'SQLWrapper | undefined'.
+  Type 'null' is not assignable to type 'SQLWrapper | undefined'.
+server/routes.ts(2828,13): error TS2345: Argument of type 'string | null' is not assignable to parameter of type 'string'.
+  Type 'null' is not assignable to type 'string'.
+server/routes.ts(2942,44): error TS2345: Argument of type 'SQL<unknown> | null | undefined' is not assignable to parameter of type 'SQLWrapper | undefined'.
+  Type 'null' is not assignable to type 'SQLWrapper | undefined'.
+server/routes.ts(2955,49): error TS2345: Argument of type 'SQL<unknown> | null' is not assignable to parameter of type 'SQLWrapper | undefined'.
+  Type 'null' is not assignable to type 'SQLWrapper | undefined'.
+server/routes.ts(3021,18): error TS2538: Type 'null' cannot be used as an index type.
+server/routes.ts(3022,15): error TS2538: Type 'null' cannot be used as an index type.
+server/routes.ts(3024,13): error TS2538: Type 'null' cannot be used as an index type.
+server/routes.ts(3109,21): error TS2495: Type 'ResultSetHeader' is not an array type or a string type.
+server/routes.ts(3164,25): error TS7053: Element implicitly has an 'any' type because expression of type '0' can't be used to index type 'ResultSetHeader'.
+  Property '0' does not exist on type 'ResultSetHeader'.
+server/routes.ts(3170,24): error TS7053: Element implicitly has an 'any' type because expression of type '0' can't be used to index type 'ResultSetHeader'.
+  Property '0' does not exist on type 'ResultSetHeader'.
+server/routes.ts(3176,27): error TS7053: Element implicitly has an 'any' type because expression of type '0' can't be used to index type 'ResultSetHeader'.
+  Property '0' does not exist on type 'ResultSetHeader'.
+server/routes.ts(3555,44): error TS2345: Argument of type 'SQL<unknown> | null' is not assignable to parameter of type 'SQLWrapper | undefined'.
+  Type 'null' is not assignable to type 'SQLWrapper | undefined'.
+server/routes.ts(3563,44): error TS2345: Argument of type 'SQL<unknown> | null' is not assignable to parameter of type 'SQLWrapper | undefined'.
+  Type 'null' is not assignable to type 'SQLWrapper | undefined'.
+server/routes.ts(3650,16): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(left: MySqlColumn<{ name: "opt_in_id"; tableName: "npa_automation"; dataType: "string"; columnType: "MySqlVarChar"; data: string; driverParam: string | number; notNull: false; hasDefault: false; isPrimaryKey: false; ... 5 more ...; generated: undefined; }, {}, {}>, right: string | SQLWrapper): SQL<...>', gave the following error.
+    Argument of type 'number' is not assignable to parameter of type 'string | SQLWrapper'.
+  Overload 2 of 3, '(left: Aliased<number>, right: number | SQLWrapper): SQL<unknown>', gave the following error.
+    Argument of type 'MySqlColumn<{ name: "opt_in_id"; tableName: "npa_automation"; dataType: "string"; columnType: "MySqlVarChar"; data: string; driverParam: string | number; notNull: false; hasDefault: false; isPrimaryKey: false; ... 5 more ...; generated: undefined; }, {}, {}>' is not assignable to parameter of type 'Aliased<number>'.
+      Type 'MySqlColumn<{ name: "opt_in_id"; tableName: "npa_automation"; dataType: "string"; columnType: "MySqlVarChar"; data: string; driverParam: string | number; notNull: false; hasDefault: false; isPrimaryKey: false; ... 5 more ...; generated: undefined; }, {}, {}>' is missing the following properties from type 'Aliased<number>': sql, fieldAlias
+  Overload 3 of 3, '(left: never, right: unknown): SQL<unknown>', gave the following error.
+    Argument of type 'MySqlColumn<{ name: "opt_in_id"; tableName: "npa_automation"; dataType: "string"; columnType: "MySqlVarChar"; data: string; driverParam: string | number; notNull: false; hasDefault: false; isPrimaryKey: false; ... 5 more ...; generated: undefined; }, {}, {}>' is not assignable to parameter of type 'never'.
+server/routes.ts(3723,9): error TS2353: Object literal may only specify known properties, and 'updatedAt' does not exist in type '{ id?: number | SQL<unknown> | undefined; isActive?: boolean | SQL<unknown> | undefined; createdAt?: Date | SQL<unknown> | null | undefined; userId?: number | SQL<unknown> | null | undefined; ... 6 more ...; deliveryWhatsapp?: string | ... 2 more ... | undefined; }'.
+server/routes.ts(3782,5): error TS2304: Cannot find name 'sessionParser'.
+server/routes/auth.ts(69,42): error TS18047: 'latest.expiresAt' is possibly 'null'.
+server/seed.ts(67,59): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(value: { description?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; id?: number | SQL<unknown> | Placeholder<string, any> | undefined; ... 14 more ...; beds?: number | ... 3 more ... | undefined; }): MySqlInsertBase<...>', gave the following error.
+    Type 'string[]' is not assignable to type 'string | SQL<unknown> | Placeholder<string, any> | null | undefined'.
+  Overload 2 of 2, '(values: { description?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; id?: number | SQL<unknown> | Placeholder<string, any> | undefined; ... 14 more ...; beds?: number | ... 3 more ... | undefined; }[]): MySqlInsertBase<...>', gave the following error.
+    Object literal may only specify known properties, and 'name' does not exist in type '{ description?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; id?: number | SQL<unknown> | Placeholder<string, any> | undefined; ... 14 more ...; beds?: number | ... 3 more ... | undefined; }[]'.
+server/seed.ts(94,37): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(value: { id?: number | SQL<unknown> | Placeholder<string, any> | undefined; createdAt?: Date | SQL<unknown> | Placeholder<string, any> | null | undefined; ... 53 more ...; approvalStatus?: string | ... 3 more ... | undefined; }): MySqlInsertBase<...>', gave the following error.
+    Type 'Date' is not assignable to type 'string | SQL<unknown> | Placeholder<string, any> | null | undefined'.
+  Overload 2 of 2, '(values: { id?: number | SQL<unknown> | Placeholder<string, any> | undefined; createdAt?: Date | SQL<unknown> | Placeholder<string, any> | null | undefined; ... 53 more ...; approvalStatus?: string | ... 3 more ... | undefined; }[]): MySqlInsertBase<...>', gave the following error.
+    Object literal may only specify known properties, and 'userId' does not exist in type '{ id?: number | SQL<unknown> | Placeholder<string, any> | undefined; createdAt?: Date | SQL<unknown> | Placeholder<string, any> | null | undefined; ... 53 more ...; approvalStatus?: string | ... 3 more ... | undefined; }[]'.
+server/seed.ts(151,53): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(value: { title?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; description?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; ... 13 more ...; createdBy?: number | ... 3 more ... | undefined; }): MySqlInsertBase<...>', gave the following error.
+    Type 'number' is not assignable to type 'string | SQL<unknown> | Placeholder<string, any> | null | undefined'.
+  Overload 2 of 2, '(values: { title?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; description?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; ... 13 more ...; createdBy?: number | ... 3 more ... | undefined; }[]): MySqlInsertBase<...>', gave the following error.
+    Object literal may only specify known properties, and 'title' does not exist in type '{ title?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; description?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; ... 13 more ...; createdBy?: number | ... 3 more ... | undefined; }[]'.
+server/seed.ts(182,36): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(value: { title?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; description?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; ... 11 more ...; currentParticipants?: number | ... 3 more ... | undefined; }): MySqlInsertBase<...>', gave the following error.
+    Type 'number' is not assignable to type 'string | SQL<unknown> | Placeholder<string, any> | null | undefined'.
+  Overload 2 of 2, '(values: { title?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; description?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; ... 11 more ...; currentParticipants?: number | ... 3 more ... | undefined; }[]): MySqlInsertBase<...>', gave the following error.
+    Object literal may only specify known properties, and 'title' does not exist in type '{ title?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; description?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; ... 11 more ...; currentParticipants?: number | ... 3 more ... | undefined; }[]'.
+server/seed.ts(255,38): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(value: { options?: unknown; id?: number | SQL<unknown> | Placeholder<string, any> | undefined; imageUrl?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; ... 9 more ...; selectedOption?: string | ... 3 more ... | undefined; }): MySqlInsertBase<...>', gave the following error.
+    Object literal may only specify known properties, but 'optionA' does not exist in type '{ options?: unknown; id?: number | SQL<unknown> | Placeholder<string, any> | undefined; imageUrl?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; ... 9 more ...; selectedOption?: string | ... 3 more ... | undefined; }'. Did you mean to write 'options'?
+  Overload 2 of 2, '(values: { options?: unknown; id?: number | SQL<unknown> | Placeholder<string, any> | undefined; imageUrl?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; ... 9 more ...; selectedOption?: string | ... 3 more ... | undefined; }[]): MySqlInsertBase<...>', gave the following error.
+    Object literal may only specify known properties, and 'quizId' does not exist in type '{ options?: unknown; id?: number | SQL<unknown> | Placeholder<string, any> | undefined; imageUrl?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; ... 9 more ...; selectedOption?: string | ... 3 more ... | undefined; }[]'.
+server/seed.ts(311,53): error TS2339: Property 'count' does not exist on type 'ResultSetHeader'.
+server/seed.ts(312,45): error TS2339: Property 'count' does not exist on type 'ResultSetHeader'.
+server/seed.ts(313,56): error TS2339: Property 'count' does not exist on type 'ResultSetHeader'.
+server/seed.ts(314,43): error TS2339: Property 'count' does not exist on type 'ResultSetHeader'.
+server/seed.ts(315,39): error TS2339: Property 'count' does not exist on type 'ResultSetHeader'.

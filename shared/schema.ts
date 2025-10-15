@@ -272,6 +272,7 @@ export const quizzes = pgTable("quizzes", {
   startTime: timestamp("start_time"),
   endTime: timestamp("end_time"),
   status: quizStatusEnum("status").default("draft"),
+  isActive: boolean("is_active").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

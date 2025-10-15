@@ -1,0 +1,46 @@
+%% Mermaid diagram: DocsUniverse / Yahle Portal Modules & Tables
+%% Incomplete modules highlighted in red
+
+flowchart TD
+  Auth[Auth Module]:::mod --> Users((users))
+  Auth --> DoctorProfiles((doctor_profiles))
+  Auth --> Contacts((contacts))
+
+  Voices[Medical Voices Module]:::mod --> MedicalVoices((medical_voices))
+  Voices --> MedicalVoiceSupporters((medical_voice_supporters))
+  Voices --> MedicalVoiceUpdates((medical_voice_updates))
+  Voices --> MedicalVoiceContacts((medical_voice_contacts))
+  Voices --> MedicalVoiceGatherings((medical_voice_gatherings))
+
+  Courses[Courses Module]:::mod --> CoursesTbl((courses))
+  Courses --> CourseModules((course_modules))
+  Courses --> Enrollments((enrollments))
+  Courses --> CourseProgress((course_progress))
+  Courses --> CourseCertificates((course_certificates))
+
+  Jobs[Jobs Module]:::mod --> JobsTbl((jobs))
+  Jobs --> JobApplications((job_applications))
+  Jobs --> Hospitals((hospitals))
+
+  Masterclasses[Masterclasses Module]:::mod --> MasterclassesTbl((masterclasses))
+  Masterclasses --> MasterclassBookings((masterclass_bookings))
+
+  AITools[AI Tools Module]:::mod --> AIToolRequests((ai_tool_requests))
+  AITools --> EntityTemplates((entity_templates))
+
+  Quizzes[Quizzes Module]:::incomplete --> QuizzesTbl((quizzes))
+  Quizzes --> QuizQuestions((quiz_questions))
+  Quizzes --> QuizSessions((quiz_sessions))
+  Quizzes --> QuizResponses((quiz_responses))
+  Quizzes --> QuizLeaderboard((quiz_leaderboard))
+  Quizzes --> QuizAttempts((quiz_attempts))
+
+  NPAAutomation[NPA Automation Module]:::incomplete --> NPATemplates((npa_templates))
+  NPAAutomation --> NPAOptIns((npa_opt_ins))
+  NPAAutomation --> NPAAutomationTbl((npa_automation))
+
+  Research[Research Services Module]:::incomplete --> ResearchServiceRequests((research_service_requests))
+
+  %% Styles
+  classDef mod fill:#e0f7fa,stroke:#00796b,stroke-width:2px;
+  classDef incomplete fill:#ffebee,stroke:#c62828,stroke-width:2px;

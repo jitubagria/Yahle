@@ -1,15 +1,15 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
-import * as schema from "@shared/schema";
+import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
 
-neonConfig.webSocketConstructor = ws;
+const pool = mysql.createPool({
+  uri: process.env.DATABASE_URL!,
+  connectionLimit: 5,
+});
 
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
-}
+export const db = drizzle(pool);
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle({ client: pool, schema });
+// optional helper for raw SQL
+export const query = async (sql: string, params?: any[]) => {
+  const [rows] = await pool.query(sql, params);
+  return rows;
+};

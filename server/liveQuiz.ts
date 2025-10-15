@@ -1,7 +1,7 @@
 import { Server as SocketServer } from 'socket.io';
 import { Server as HTTPServer } from 'http';
 import { db } from './db';
-import { quizzes, quizQuestions, quizSessions, quizResponses, quizLeaderboard, users } from '@shared/schema';
+import { quizzes, quizQuestions, quizSessions, quizResponses, quizLeaderboard, users } from '../drizzle/schema';
 import { eq, and, sql } from 'drizzle-orm';
 
 interface QuizSession {
@@ -107,23 +107,23 @@ export function setupWebSocket(httpServer: HTTPServer) {
       const speedBonus = Math.max(0, Math.floor((questionTime - timeTaken) / 2));
       const score = isCorrect ? baseScore + speedBonus : 0;
 
-      // Save response
-      await db.insert(quizResponses).values({
-        quizId,
-        questionId,
-        userId,
-        selectedOption,
-        isCorrect,
-        responseTime: timeTaken,
-        score,
-      });
+      // Save response (MySQL-safe: use INSERT ... ON DUPLICATE KEY UPDATE)
+      await db.execute(sql`
+        INSERT INTO quiz_responses (quiz_id, user_id, question_id, selected_option, is_correct, response_time, score, created_at)
+        VALUES (${quizId}, ${userId}, ${questionId}, ${selectedOption}, ${isCorrect}, ${timeTaken}, ${score}, NOW())
+        ON DUPLICATE KEY UPDATE
+          selected_option = VALUES(selected_option),
+          is_correct = VALUES(is_correct),
+          response_time = VALUES(response_time),
+          score = VALUES(score);
+      `);
 
       // Update leaderboard
+      // Upsert leaderboard (MySQL): add to total_score on duplicate key
       await db.execute(sql`
         INSERT INTO quiz_leaderboard (quiz_id, user_id, total_score, rank)
         VALUES (${quizId}, ${userId}, ${score}, 0)
-        ON CONFLICT (quiz_id, user_id) 
-        DO UPDATE SET total_score = quiz_leaderboard.total_score + ${score}
+        ON DUPLICATE KEY UPDATE total_score = total_score + VALUES(total_score)
       `);
 
       console.log(`User ${userId} answered Q${questionId}: ${isCorrect ? 'Correct' : 'Wrong'} (+${score} points)`);
@@ -168,8 +168,9 @@ export function setupWebSocket(httpServer: HTTPServer) {
         .where(eq(quizQuestions.quizId, quizId))
         .orderBy(quizQuestions.orderIndex);
 
-      // Update quiz session in DB
-      await db.insert(quizSessions).values({
+      // Update quiz session in DB (use insertAndFetch to get row back)
+      const { insertAndFetch } = await import('./dbHelpers');
+      await insertAndFetch(db, quizSessions, {
         quizId,
         currentQuestion: 0,
         startedAt: new Date(),
