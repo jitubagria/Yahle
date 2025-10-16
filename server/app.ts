@@ -30,6 +30,10 @@ export async function createApp() {
     logger.info({ reqId, method: req.method, url: req.url }, 'Incoming request');
     next();
   });
+  // Performance metrics: record response time and persist to api_logs
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { default: responseTimeMiddleware } = require('./middleware/responseTime');
+  app.use(responseTimeMiddleware);
   app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
   app.use(rateLimit({ windowMs: 60_000, max: 120 }));
 
