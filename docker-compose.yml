@@ -1,0 +1,54 @@
+version: '3.8'
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: yahle_dev
+      MYSQL_USER: yahle
+      MYSQL_PASSWORD: yahle
+    ports:
+      - "3306:3306"
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    environment:
+      DATABASE_HOST: db
+      DATABASE_USER: yahle
+      DATABASE_PASSWORD: yahle
+      DATABASE_NAME: yahle_dev
+      JWT_SECRET: test-secret
+      NODE_ENV: development
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./:/usr/src/app
+    command: npm run dev
+
+  tests:
+    build: .
+    environment:
+      DATABASE_HOST: db
+      DATABASE_USER: yahle
+      DATABASE_PASSWORD: yahle
+      DATABASE_NAME: yahle_dev
+      JWT_SECRET: test-secret
+      NODE_ENV: test
+    depends_on:
+      - db
+    volumes:
+      - ./:/usr/src/app
+    command: npm test -- --runInBand --detectOpenHandles
+
+volumes:
+  db-data:
