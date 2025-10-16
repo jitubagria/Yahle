@@ -3,11 +3,35 @@ import { sql } from "drizzle-orm"
 
 export const aiToolRequests = mysqlTable("ai_tool_requests", {
 	id: int().autoincrement().notNull(),
-	userId: int("user_id").notNull(),
-	toolType: varchar("tool_type", { length: 100 }).notNull(),
-	inputData: text("input_data").notNull(),
-	outputData: text("output_data").default(sql`NULL`),
-	createdAt: datetime("created_at", { mode: 'string'}).default(sql`CURRENT_TIMESTAMP`),
+	user_id: int("user_id").notNull(),
+	tool_type: varchar("tool_type", { length: 100 }).notNull(),
+	input_data: text("input_data").notNull(),
+	output_data: text("output_data").default(sql`NULL`),
+	created_at: datetime("created_at", { mode: 'string'}).default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const aiTools = mysqlTable('ai_tools', {
+	id: int().autoincrement().notNull(),
+	name: varchar('name', { length: 255 }).notNull(),
+	slug: varchar('slug', { length: 100 }).notNull(),
+	description: text('description').default(sql`NULL`),
+	is_active: tinyint('is_active').default(1),
+	created_at: datetime('created_at', { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
+},
+(table) => [
+	unique('slug').on(table.slug),
+]);
+
+export const aiToolLogs = mysqlTable('ai_tool_logs', {
+	id: int().autoincrement().notNull(),
+	user_id: int('user_id').default(sql`NULL`),
+	tool_type: varchar('tool_type', { length: 100 }).notNull(),
+	input_data: text('input_data').notNull(),
+	output_data: text('output_data').default(sql`NULL`),
+	status: varchar('status', { length: 50 }).default('queued'),
+	started_at: datetime('started_at', { mode: 'string' }).default(sql`NULL`),
+	finished_at: datetime('finished_at', { mode: 'string' }).default(sql`NULL`),
+	created_at: datetime('created_at', { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const scheduledJobs = mysqlTable('scheduled_jobs', {
