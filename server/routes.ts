@@ -131,6 +131,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     app.get('/api/job-applications', (_req: Request, res: Response) => res.json({ message: 'job-applications endpoint (stub)' }));
   }
 
+  try {
+    // ai-tools
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const aiToolsRouter = require('./modules/aiTools/routes').default;
+    app.use('/api/ai-tools', aiToolsRouter);
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const logger = require('./lib/logger').default;
+    logger.debug('Mounted /api/ai-tools routes');
+  } catch (err) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const logger = require('./lib/logger').default;
+    logger.error({ err }, 'Failed to mount ai-tools router');
+    app.get('/api/ai-tools', (_req: Request, res: Response) => res.json({ message: 'ai-tools endpoint (stub)' }));
+  }
+
+  try {
+    // certificates (protected)
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const certificatesRouter = require('./modules/certificates/routes').default;
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const authMiddleware2 = require('./middleware/auth').verifyToken;
+    app.use('/api/certificates', authMiddleware2, certificatesRouter);
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const logger = require('./lib/logger').default;
+    logger.debug('Mounted /api/certificates routes');
+  } catch (err) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const logger = require('./lib/logger').default;
+    logger.error({ err }, 'Failed to mount certificates router');
+    app.get('/api/certificates', (_req: Request, res: Response) => res.json({ message: 'certificates endpoint (stub)' }));
+  }
+
+  try {
+    // public API (read-only)
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const publicApiRouter = require('./modules/publicApi/routes').default;
+    app.use('/api/public', publicApiRouter);
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const logger = require('./lib/logger').default;
+    logger.debug('Mounted /api/public routes');
+  } catch (err) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const logger = require('./lib/logger').default;
+    logger.error({ err }, 'Failed to mount public API router');
+    app.get('/api/public', (_req: Request, res: Response) => res.json({ message: 'public endpoint (stub)' }));
+  }
+
   // courses and jobs routers are not present as modular route files in
   // server/modules; keep lightweight stubs to preserve existing behavior.
   app.get('/api/courses', (_req: Request, res: Response) => res.json({ data: [] }));
