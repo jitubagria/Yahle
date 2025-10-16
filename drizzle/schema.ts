@@ -10,6 +10,27 @@ export const aiToolRequests = mysqlTable("ai_tool_requests", {
 	createdAt: datetime("created_at", { mode: 'string'}).default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const scheduledJobs = mysqlTable('scheduled_jobs', {
+	id: int().autoincrement().notNull(),
+	jobName: varchar('job_name', { length: 100 }).notNull(),
+	status: varchar('status', { length: 20 }).default('pending'),
+	lastRun: datetime('last_run', { mode: 'string' }).default(sql`NULL`),
+	nextRun: datetime('next_run', { mode: 'string' }).default(sql`NULL`),
+	error: text('error').default(sql`NULL`),
+	updatedAt: datetime('updated_at', { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const apiLogs = mysqlTable('api_logs', {
+	id: int().autoincrement().notNull(),
+	requestId: varchar('request_id', { length: 64 }).notNull(),
+	route: varchar('route', { length: 255 }).notNull(),
+	method: varchar('method', { length: 10 }).notNull(),
+	status: int('status').notNull(),
+	durationMs: int('duration_ms').default(0),
+	userId: int('user_id').default(sql`NULL`),
+	createdAt: datetime('created_at', { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const bigtosMessages = mysqlTable("bigtos_messages", {
 	id: int().autoincrement().notNull(),
 	mobile: varchar({ length: 20 }).notNull(),
