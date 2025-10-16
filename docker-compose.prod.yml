@@ -1,0 +1,30 @@
+version: '3.8'
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: yahle_prod
+      MYSQL_USER: yahle
+      MYSQL_PASSWORD: yahle
+    volumes:
+      - db-prod-data:/var/lib/mysql
+    restart: always
+
+  app:
+    image: ghcr.io/jitubagria/yahle:latest
+    environment:
+      DATABASE_HOST: db
+      DATABASE_USER: yahle
+      DATABASE_PASSWORD: yahle
+      DATABASE_NAME: yahle_prod
+      JWT_SECRET: ${JWT_SECRET}
+      NODE_ENV: production
+    depends_on:
+      - db
+    ports:
+      - "3000:3000"
+    restart: always
+
+volumes:
+  db-prod-data:

@@ -1,21 +1,21 @@
-# Minimal Dockerfile for Yahle backend
-FROM node:18-bullseye-slim
-
-# Create app directory
+FROM node:18-bullseye AS builder
 WORKDIR /usr/src/app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build || true
 
-# Install app dependencies
+FROM node:18-bullseye-slim
+WORKDIR /usr/src/app
+ENV NODE_ENV=production
+ENV PORT=3000
+
+# Copy only production deps
 COPY package*.json ./
 RUN npm ci --only=production
 
-# Copy source
-COPY . .
-
-# Build step (if using tsc build) - optional
-# RUN npm run build
-
-ENV NODE_ENV=production
-ENV PORT=3000
+# Copy built artifacts and server code
+COPY --from=builder /usr/src/app .
 
 EXPOSE 3000
 CMD [ "node", "server/index.js" ]
