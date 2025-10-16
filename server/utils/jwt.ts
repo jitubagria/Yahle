@@ -16,3 +16,8 @@ export function signRefreshToken(payload: object, expiresIn = "30d") {
 export function verifyToken(token: string): JwtPayload {
   return jwt.verify(token, JWT_SECRET) as JwtPayload;
 }
+
+// Convenience helper for tests: generate a short-lived access token
+export function generateToken(payload: object) {
+  return signAccessToken(payload, '1h');
+}

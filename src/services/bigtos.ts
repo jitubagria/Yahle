@@ -1,5 +1,6 @@
 // src/services/bigtos.ts
 import fetch from "node-fetch";
+import logger from '../../server/lib/logger';
 import type { IBigtosService, IBigtosSendOptions } from "../../types/bigtos";
 
 const BASE_URL = "https://www.cp.bigtos.com/api/v1";
@@ -29,7 +30,7 @@ async function post(endpoint: string, body: Record<string, any>) {
       return { raw: text };
     }
   } catch (err: any) {
-    console.error(`[BigTos] Network error: ${err.message}`);
+    logger.error({ err, message: err.message }, '[BigTos] Network error');
     throw err;
   }
 }
@@ -49,7 +50,7 @@ export async function sendBigtosMessage(opts: BigtosSendOptions) {
 
   // Bulk trigger: >20 numbers in a batch
   if (numbers.length > 20) {
-    console.log(`[BigTos] Bulk mode for ${numbers.length} numbers`);
+    logger.info(`[BigTos] Bulk mode for ${numbers.length} numbers`);
     const body: any = {
       key: API_KEY,
       mobileno: numbers.join(","),
@@ -65,7 +66,7 @@ export async function sendBigtosMessage(opts: BigtosSendOptions) {
   const results: any[] = [];
   for (let i = 0; i < numbers.length; i++) {
     const n = numbers[i];
-    console.log(`[BigTos] Sending ${type} to ${n}`);
+    logger.info(`[BigTos] Sending ${type} to ${n}`);
 
     let payload: any = { key: API_KEY, mobileno: n, msg, type };
     if (file) payload.File = file;
@@ -164,15 +165,15 @@ export const bigtosService: IBigtosService = IS_PROD_BIGTOS
   : {
       // Dev stub: log and no-op
       async sendMessage(opts) {
-        console.log('[BigTos stub] sendMessage', opts);
+        logger.info({ opts }, '[BigTos stub] sendMessage');
         return { stub: true };
       },
       async sendText(mobileno: string | string[], msg: string) {
-        console.log('[BigTos stub] sendText', mobileno, msg);
+        logger.info({ mobileno, msg }, '[BigTos stub] sendText');
         return { stub: true };
       },
       async sendOTP(mobileno: string, otpCode: string) {
-        console.log('[BigTos stub] sendOTP', mobileno, otpCode);
+        logger.info({ mobileno, otpCode }, '[BigTos stub] sendOTP');
         return { stub: true };
       },
       async sendImage() {
@@ -198,27 +199,27 @@ export const bigtosService: IBigtosService = IS_PROD_BIGTOS
       },
       // legacy aliases present on the dev stub as well
       async sendTextImage(mobileno: string | string[], msg: string, file?: string) {
-        console.log('[BigTos stub] sendTextImage', mobileno, msg, file);
+        logger.info({ mobileno, msg, file }, '[BigTos stub] sendTextImage');
         return { stub: true };
       },
       async sendCourseEnrollmentNotification(mobileno: string, courseName: string) {
-        console.log('[BigTos stub] sendCourseEnrollmentNotification', mobileno, courseName);
+        logger.info({ mobileno, courseName }, '[BigTos stub] sendCourseEnrollmentNotification');
         return { stub: true };
       },
       async sendQuizCertificateNotification(mobileno: string, quizName: string, score: number) {
-        console.log('[BigTos stub] sendQuizCertificateNotification', mobileno, quizName, score);
+        logger.info({ mobileno, quizName, score }, '[BigTos stub] sendQuizCertificateNotification');
         return { stub: true };
       },
       async sendMasterclassBookingNotification(mobileno: string, masterclassName: string, scheduledAt: string) {
-        console.log('[BigTos stub] sendMasterclassBookingNotification', mobileno, masterclassName, scheduledAt);
+        logger.info({ mobileno, masterclassName, scheduledAt }, '[BigTos stub] sendMasterclassBookingNotification');
         return { stub: true };
       },
       async sendResearchServiceNotification(mobileno: string, serviceName: string, status: string) {
-        console.log('[BigTos stub] sendResearchServiceNotification', mobileno, serviceName, status);
+        logger.info({ mobileno, serviceName, status }, '[BigTos stub] sendResearchServiceNotification');
         return { stub: true };
       },
       async sendVoiceUpdate(mobileno: string, userName: string, voiceTitle: string, updateTitle: string) {
-        console.log('[BigTos stub] sendVoiceUpdate', mobileno, userName, voiceTitle, updateTitle);
+        logger.info({ mobileno, userName, voiceTitle, updateTitle }, '[BigTos stub] sendVoiceUpdate');
         return { stub: true };
       },
     };

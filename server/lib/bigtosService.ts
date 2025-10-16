@@ -1,4 +1,5 @@
 import axios from 'axios';
+import logger from './logger';
 
 const BIGTOS_API_URL = 'https://www.cp.bigtos.com/api/v1/sendmessage';
 const BIGTOS_KEY = process.env.BIGTOS_API_KEY || 'Enterkey';
@@ -17,7 +18,7 @@ export async function sendBigtosMessage(mobileNo: string, msg: string) {
 
     return response.data;
   } catch (error: any) {
-    console.error('Bigtos API Error:', error.response?.data || error.message);
+    logger.error({ err: error, response: error.response?.data }, 'Bigtos API Error');
     throw new Error('Failed to send message via Bigtos');
   }
 }

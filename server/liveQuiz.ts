@@ -3,6 +3,9 @@ import { Server as HTTPServer } from 'http';
 import { db } from './db';
 import { quizzes, quizQuestions, quizSessions, quizResponses, quizLeaderboard, users } from '../drizzle/schema';
 import { eq, and, sql } from 'drizzle-orm';
+import { QuizSessionStatus } from './enums';
+import { insertAndFetch } from './core/dbHelpers';
+import logger from './lib/logger';
 
 interface QuizSession {
   quizId: number;
@@ -24,15 +27,15 @@ export function setupWebSocket(httpServer: HTTPServer) {
   });
 
   io.on('connection', (socket) => {
-    console.log('Client connected:', socket.id);
+    logger.info({ socketId: socket.id }, 'Client connected');
 
     // Join quiz room
     socket.on('quiz:join', async (data: { quizId: number; userId: number }) => {
       const { quizId, userId } = data;
       const roomName = `quiz-${quizId}`;
       
-      socket.join(roomName);
-      console.log(`User ${userId} joined quiz ${quizId}`);
+  socket.join(roomName);
+  logger.info({ userId, quizId }, `User ${userId} joined quiz ${quizId}`);
 
       // Add to participants
       let session = activeSessions.get(quizId);
@@ -126,11 +129,11 @@ export function setupWebSocket(httpServer: HTTPServer) {
         ON DUPLICATE KEY UPDATE total_score = total_score + VALUES(total_score)
       `);
 
-      console.log(`User ${userId} answered Q${questionId}: ${isCorrect ? 'Correct' : 'Wrong'} (+${score} points)`);
+  logger.info({ userId, questionId, isCorrect, score }, `User ${userId} answered Q${questionId}: ${isCorrect ? 'Correct' : 'Wrong'} (+${score} points)`);
     });
 
     socket.on('disconnect', () => {
-      console.log('Client disconnected:', socket.id);
+      logger.info({ socketId: socket.id }, 'Client disconnected');
     });
   });
 
@@ -169,13 +172,12 @@ export function setupWebSocket(httpServer: HTTPServer) {
         .orderBy(quizQuestions.orderIndex);
 
       // Update quiz session in DB (use insertAndFetch to get row back)
-      const { insertAndFetch } = await import('./dbHelpers');
       await insertAndFetch(db, quizSessions, {
         quizId,
         currentQuestion: 0,
         startedAt: new Date(),
-        status: 'running',
-      });
+        status: QuizSessionStatus.RUNNING as any,
+      } as any);
 
       const questionTime = quiz?.questionTime || 10;
       const leaderboardDelay = 7; // seconds to show leaderboard
@@ -253,7 +255,7 @@ export function setupWebSocket(httpServer: HTTPServer) {
       // Update session status
       await db.execute(sql`
         UPDATE quiz_sessions 
-        SET status = 'finished'
+        SET status = ${'completed'}
         WHERE quiz_id = ${quizId}
       `);
     } finally {

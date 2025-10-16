@@ -19,6 +19,7 @@ import masterclassBookings from './masterclassBookings';
 import quizzesRoutes from '../modules/quizzes/routes';
 import npaAutomationRoutes from '../modules/npa-automation/routes';
 import researchRoutes from '../modules/research/routes';
+import authRoutes from '../modules/auth/routes';
 import aiTools from './aiTools';
 import npaOptIns from './npaOptIns';
 import npaTemplates from './npaTemplates';
@@ -65,6 +66,6 @@ api.use('/medical-voice-gatherings', medicalVoiceGatherings);
 api.use('/messages', messages);
 api.use('/entity-templates', entityTemplates);
 api.use('/settings', settings);
-api.use('/auth', auth);
+api.use('/auth', authRoutes);
 
 export default api;

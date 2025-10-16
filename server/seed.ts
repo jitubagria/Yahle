@@ -1,6 +1,10 @@
 import { db } from "./db";
+import { sql } from 'drizzle-orm';
 import { users, courses, quizzes, quizQuestions } from "../drizzle/schema";
 import { doctorProfiles, hospitals, jobs, masterclasses } from "../drizzle/schema";
+import { RoleType, PaymentStatus, QuizType } from './enums';
+import { insertAndFetch } from './core/dbHelpers';
+import logger from './lib/logger';
 
 const specialties = [
   "Cardiology", "Neurology", "Orthopedics", "Pediatrics", "Dermatology",
@@ -34,7 +38,7 @@ const collegeNames = [
 ];
 
 async function seed() {
-  console.log("Starting database seed...");
+  logger.info('Starting database seed...');
 
   // Check existing data
   const existingUsers = await db.select().from(users).limit(25);
@@ -44,17 +48,17 @@ async function seed() {
 
   // Create users only if needed
   if (existingUsers.length < 25) {
-    console.log("Creating users...");
+  logger.info('Creating users...');
       for (let i = existingUsers.length + 1; i <= 25; i++) {
       const userInsertRes: any = await db.insert(users).values({
         phone: `98${String(10000000 + i).slice(0, 8)}`,
-        role: i <= 20 ? "doctor" : "student",
-        isVerified: true,
+        role: i <= 20 ? RoleType.DOCTOR : RoleType.STUDENT,
+        isVerified: 1,
       }).execute();
       userIds.push(userInsertRes.insertId as number);
     }
   } else {
-    console.log("Users already exist, skipping...");
+    logger.info('Users already exist, skipping...');
   }
 
   // Check and create hospitals
@@ -62,45 +66,44 @@ async function seed() {
   let hospitalIds: number[] = existingHospitals.map(h => h.id);
   
   if (existingHospitals.length < 10) {
-    console.log("Creating hospitals...");
+  logger.info('Creating hospitals...');
       for (let i = existingHospitals.length; i < 10; i++) {
-        const hospitalRes: any = await db.insert(hospitals).values({
-          name: hospitalNames[i],
-          // map earlier `location` usage to `city` (schema uses city)
-          city: cities[i % cities.length],
-          // store the type information in description for now (schema has no `type` column)
-          description: i % 2 === 0 ? "Government" : "Private",
-          beds: 100 + Math.floor(Math.random() * 400),
-          specialties: JSON.stringify([
-            specialties[i % specialties.length],
-            specialties[(i + 1) % specialties.length],
-            specialties[(i + 2) % specialties.length]
-          ]),
-        }).execute();
-        hospitalIds.push(hospitalRes.insertId as number);
-      }
+      const hospitalRes: any = await db.insert(hospitals).values({
+            name: hospitalNames[i],
+            // map earlier `location` usage to `city` (schema uses city)
+            city: cities[i % cities.length],
+            // store the type information in description for now (schema has no `type` column)
+            description: i % 2 === 0 ? "Government" : "Private",
+            specialties: JSON.stringify([
+              specialties[i % specialties.length],
+              specialties[(i + 1) % specialties.length],
+              specialties[(i + 2) % specialties.length]
+            ]),
+          }).execute();
+          hospitalIds.push(hospitalRes.insertId as number);
+        }
   } else {
-    console.log("Hospitals already exist, skipping...");
+    logger.info('Hospitals already exist, skipping...');
   }
 
   // Create doctor profiles only if they don't exist
   if (existingDoctors.length > 0) {
-    console.log("Doctor profiles already exist, skipping...");
+    logger.info('Doctor profiles already exist, skipping...');
   } else {
-    console.log("Creating doctor profiles...");
+    logger.info('Creating doctor profiles...');
   const firstNames = ["Rajesh", "Priya", "Amit", "Neha", "Vikram", "Anjali", "Rahul", "Sneha", "Arun", "Kavita", 
                       "Suresh", "Meena", "Deepak", "Lakshmi", "Ravi", "Divya", "Karthik", "Pooja", "Sandeep", "Nisha"];
   const lastNames = ["Sharma", "Patel", "Singh", "Kumar", "Gupta", "Reddy", "Nair", "Mehta", "Joshi", "Iyer"];
 
     for (let i = 0; i < 20; i++) {
-      await db.insert(doctorProfiles).values({
+  await db.insert(doctorProfiles).values({
         userId: userIds[i],
         firstName: firstNames[i],
         lastName: lastNames[i % lastNames.length],
         email: `dr.${firstNames[i].toLowerCase()}.${lastNames[i % lastNames.length].toLowerCase()}@example.com`,
         dob: new Date(1975 + Math.floor(Math.random() * 25), Math.floor(Math.random() * 12), 1).toISOString(),
-        gender: i % 2 === 0 ? "male" : "female",
-        marriatialstatus: i % 3 === 0 ? "married" : "single",
+        gender: i % 2 === 0 ? 'male' : 'female',
+        marriatialstatus: i % 3 === 0 ? 'married' : 'single',
         professionaldegree: degrees[i % degrees.length],
         userMobile: `98${String(10000000 + i).slice(0, 8)}`,
 
@@ -119,7 +122,7 @@ async function seed() {
         jobState: states[i % states.length],
         jobCity: cities[i % cities.length],
         jobPrivateHospital: hospitalNames[i % hospitalNames.length],
-      });
+      }).execute();
     }
   }
 
@@ -129,9 +132,9 @@ async function seed() {
   // Create courses (check if they exist first)
   const existingCourses = await db.select().from(courses).limit(1);
   if (existingCourses.length > 0) {
-    console.log("Courses already exist, skipping...");
+    logger.info('Courses already exist, skipping...');
   } else {
-    console.log("Creating courses...");
+    logger.info('Creating courses...');
   const courseTopics = [
     { title: "Advanced Cardiology", desc: "Comprehensive course on cardiovascular diseases and treatments" },
     { title: "Pediatric Emergency Care", desc: "Essential skills for handling pediatric emergencies" },
@@ -145,13 +148,12 @@ async function seed() {
   const courseIds: number[] = [];
     for (let i = 0; i < courseTopics.length; i++) {
       const priceValue = 5000 + Math.floor(Math.random() * 15000);
-      const courseRes: any = await db.insert(courses).values({
+  const courseRes: any = await db.insert(courses).values({
         title: courseTopics[i].title,
         description: courseTopics[i].desc,
-        // schema doesn't have `instructor` column on courses; set createdBy to a valid user
-        createdBy: userIds[0] || null,
+        instructor: instructorNames[0],
         duration: 20 + Math.floor(Math.random() * 40), // hours
-        price: priceValue.toFixed(2),
+        price: priceValue,
         enrollmentCount: Math.floor(Math.random() * 500),
       }).execute();
       courseIds.push(courseRes.insertId as number);
@@ -161,9 +163,9 @@ async function seed() {
   // Create masterclasses (check if they exist first)
   const existingMasterclasses = await db.select().from(masterclasses).limit(1);
   if (existingMasterclasses.length > 0) {
-    console.log("Masterclasses already exist, skipping...");
+    logger.info('Masterclasses already exist, skipping...');
   } else {
-    console.log("Creating masterclasses...");
+    logger.info('Creating masterclasses...');
   const masterclassTopics = [
     "Live Surgery Demonstration - Cardiac Bypass",
     "Case Discussion: Complex Neurology Cases",
@@ -172,18 +174,18 @@ async function seed() {
     "Conference: Pediatric Care Excellence"
   ];
 
-  for (let i = 0; i < 5; i++) {
-    const eventDate = new Date();
-    eventDate.setDate(eventDate.getDate() + 7 + i * 7);
-    eventDate.setHours(10 + i, 0, 0); // Set time to 10 AM, 11 AM, etc.
-    
-      await db.insert(masterclasses).values({
+    for (let i = 0; i < 5; i++) {
+    // use CURRENT_TIMESTAMP for seeded eventDate to keep seed deterministic and typed
+    // (schema accepts datetime; using SQL fragment avoids mismatched types)
+    const eventDateSql = sql`CURRENT_TIMESTAMP`;
+
+  await db.insert(masterclasses).values({
         title: masterclassTopics[i],
         description: `Expert-led ${masterclassTopics[i].toLowerCase()} with renowned specialists`,
         instructor: instructorNames[i],
-        eventDate: eventDate,
+        eventDate: eventDateSql,
         duration: 120 + Math.floor(Math.random() * 60), // 120-180 minutes
-        price: (2000 + Math.floor(Math.random() * 3000)).toFixed(2),
+        price: 2000 + Math.floor(Math.random() * 3000),
         maxParticipants: 50 + Math.floor(Math.random() * 50),
         currentParticipants: Math.floor(Math.random() * 30),
       }).execute();
@@ -193,9 +195,9 @@ async function seed() {
   // Create quizzes with questions (check if they exist first)
   const existingQuizzes = await db.select().from(quizzes).limit(4);
   if (existingQuizzes.length >= 4) {
-    console.log("Quizzes already exist, skipping...");
+    logger.info('Quizzes already exist, skipping...');
   } else {
-    console.log("Creating quizzes...");
+    logger.info('Creating quizzes...');
   const quizTopics = [
     { title: "Cardiology Basics", specialty: "Cardiology", questionsCount: 5 },
     { title: "Pediatric Assessment", specialty: "Pediatrics", questionsCount: 4 },
@@ -233,31 +235,30 @@ async function seed() {
 
     for (let i = 0; i < quizTopics.length; i++) {
     const topic = quizTopics[i];
-    const { insertAndFetch } = await import('./dbHelpers');
     const quizRow = await insertAndFetch(db, quizzes, {
       title: topic.title,
       description: `Test your knowledge in ${topic.specialty}`,
       category: topic.specialty,
       totalQuestions: topic.questionsCount,
-      timeLimit: topic.questionsCount * 2, // 2 minutes per question
-      passingScore: 60,
-      price: 500 + Math.floor(Math.random() * 1000),
-      attemptsCount: Math.floor(Math.random() * 200),
+      questionTime: topic.questionsCount * 2, // 2 minutes per question
+  passingScore: 60,
+  entryFee: 500 + Math.floor(Math.random() * 1000),
     });
-    const quizId = quizRow.id;
+    if (!quizRow) throw new Error('Failed to create quiz');
+    const quizId = (quizRow as any).id as number;
 
     const questions = allQuestions[topic.specialty].slice(0, topic.questionsCount);
     
       for (let j = 0; j < questions.length; j++) {
-      const q = questions[j];
-      await db.insert(quizQuestions).values({
-        quizId: quizId as number,
-        questionText: q.text,
-        // schema expects a JSON/text `options` column; store as JSON string
-        options: JSON.stringify([q.optionA, q.optionB, q.optionC, q.optionD]),
-        correctOption: q.correctOption,
-        orderIndex: j + 1,
-      });
+          const q = questions[j];
+        await db.insert(quizQuestions).values({
+          quizId: quizId as number,
+          questionText: q.text,
+          // schema expects a JSON/text `options` column; store as JSON string
+          options: JSON.stringify([q.optionA, q.optionB, q.optionC, q.optionD]),
+          correctOption: q.correctOption,
+          orderIndex: j + 1,
+        }).execute();
     }
   }
   }
@@ -265,9 +266,9 @@ async function seed() {
   // Create jobs (check if they exist first)
   const existingJobs = await db.select().from(jobs).limit(1);
   if (existingJobs.length > 0) {
-    console.log("Jobs already exist, skipping...");
+    logger.info('Jobs already exist, skipping...');
   } else {
-    console.log("Creating jobs...");
+    logger.info('Creating jobs...');
   const jobTitles = [
     "Senior Cardiologist", "Pediatric Specialist", "Consultant Surgeon", "Radiologist",
     "Emergency Medicine Physician", "Oncologist", "Neurologist", "Anesthesiologist",
@@ -277,26 +278,25 @@ async function seed() {
   ];
 
       for (let i = 0; i < 20; i++) {
-    await db.insert(jobs).values({
+  await db.insert(jobs).values({
       title: jobTitles[i],
       hospitalName: hospitalNames[i % hospitalNames.length],
       location: cities[i % cities.length],
       specialty: specialties[i % specialties.length],
       experienceRequired: `${3 + Math.floor(Math.random() * 10)} years`,
-      salary: `₹${10 + Math.floor(Math.random() * 30)} LPA`,
+      salaryRange: `₹${10 + Math.floor(Math.random() * 30)} LPA`,
       jobType: i % 3 === 0 ? "Full-time" : i % 3 === 1 ? "Part-time" : "Contract",
       description: `We are looking for an experienced ${jobTitles[i]} to join our team at ${hospitalNames[i % hospitalNames.length]}.`,
       requirements: `MBBS, ${i % 2 === 0 ? 'MD' : 'MS'} in ${specialties[i % specialties.length]}, valid medical license`,
-      postedDate: new Date(Date.now() - Math.floor(Math.random() * 30) * 24 * 60 * 60 * 1000),
-      isActive: true,
-      applicationCount: Math.floor(Math.random() * 50),
+  postedAt: sql`CURRENT_TIMESTAMP`,
+  isActive: 1,
     }).execute();
   }
   }
 
-  console.log("Database seeded successfully!");
-  console.log(`Checked/created ${userIds.length} users`);
-  console.log(`Checked/created ${hospitalIds.length} hospitals`);
+  logger.info('Database seeded successfully!');
+  logger.info({ createdUsers: userIds.length }, `Checked/created ${userIds.length} users`);
+  logger.info({ createdHospitals: hospitalIds.length }, `Checked/created ${hospitalIds.length} hospitals`);
   
   const [doctorCountRows]: any = await db.execute(`SELECT COUNT(*) as count FROM doctor_profiles`);
   const [courseCountRows]: any = await db.execute(`SELECT COUNT(*) as count FROM courses`);
@@ -310,16 +310,16 @@ async function seed() {
   const quizCount = (quizCountRows as unknown as any[])[0];
   const jobCount = (jobCountRows as unknown as any[])[0];
 
-  console.log(`Total doctor profiles: ${doctorCount.count}`);
-  console.log(`Total courses: ${courseCount.count}`);
-  console.log(`Total masterclasses: ${masterclassCount.count}`);
-  console.log(`Total quizzes: ${quizCount.count}`);
-  console.log(`Total jobs: ${jobCount.count}`);
+  logger.info({ totalDoctorProfiles: doctorCount.count }, `Total doctor profiles: ${doctorCount.count}`);
+  logger.info({ totalCourses: courseCount.count }, `Total courses: ${courseCount.count}`);
+  logger.info({ totalMasterclasses: masterclassCount.count }, `Total masterclasses: ${masterclassCount.count}`);
+  logger.info({ totalQuizzes: quizCount.count }, `Total quizzes: ${quizCount.count}`);
+  logger.info({ totalJobs: jobCount.count }, `Total jobs: ${jobCount.count}`);
 }
 
 seed()
   .catch((error) => {
-    console.error("Seed error:", error);
+    logger.error({ err: error }, 'Seed error:');
     process.exit(1);
   })
   .finally(() => {

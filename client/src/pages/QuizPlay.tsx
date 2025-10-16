@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import logger from '@/lib/logger';
 import { useQuery } from '@tanstack/react-query';
 import { useParams, useLocation } from 'wouter';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -120,7 +121,7 @@ export default function QuizPlay() {
     };
 
     ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
+      logger.error('WebSocket error:', error);
       toast({
         title: 'Connection Error',
         description: 'Lost connection to quiz server',

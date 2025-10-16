@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../../lib/db';
 import { courses } from '../../drizzle/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
+import { ResultSetHeader } from 'mysql2';
 import { asyncHandler } from '../../lib/asyncHandler';
 import { validate } from '../../lib/validate';
 import { parsePagination } from '../../lib/pagination';
@@ -20,37 +21,37 @@ const CreateCourse = z.object({ title: z.string(), description: z.string().optio
 const UpdateCourse = CreateCourse.partial();
 
 router.post('/', requireAuth, validate(CreateCourse), asyncHandler(async (req, res) => {
-	const payload = req.body as any;
-	// Using any to work across adapters
-	const insertRes: any = await (db as any).insert(courses).values(payload).execute();
-	const id = insertRes.insertId as number;
-	const [record] = await (db as any).select().from(courses).where(eq((courses as any).id, id)).limit(1);
-		res.status(201).json({ success: true, data: record, message: 'Course created' });
+	const payload = req.body;
+	const result = await db.insert(courses).values(payload);
+	const insertId = (result as unknown as ResultSetHeader).insertId;
+	const [record] = await db.select().from(courses).where(eq(courses.id, insertId)).limit(1);
+	res.status(201).json({ success: true, data: record, message: 'Course created' });
 }));
 
 router.get('/', validate(ListQuery, 'query'), asyncHandler(async (req, res) => {
 	const { limit, offset, page, pageSize } = parsePagination(req as any);
-		const data = await (db as any).select().from(courses).limit(limit).offset(offset);
-		const [{ total }] = await (db as any).select({ total: (db as any).raw('COUNT(*)') }).from(courses) as any[];
-	res.json({ success: true, data, page, pageSize, total: total || 0 });
+		const data = await db.select().from(courses).limit(limit).offset(offset);
+		const result = await db.select({ total: sql`COUNT(*)` }).from(courses);
+		const total = Number(result[0]?.total) || 0;
+	res.json({ success: true, data, page, pageSize, total });
 }));
 
 router.get('/:id', asyncHandler(async (req, res) => {
 	const id = Number(req.params.id);
-		const record = await (db as any).select().from(courses).where(eq((courses as any).id, id)).limit(1);
-	if (!record || record.length === 0) return res.status(404).json({ success: false, message: 'Not found' });
-	res.json({ success: true, data: record[0] });
+		const [record] = await db.select().from(courses).where(eq(courses.id, id)).limit(1);
+	if (!record) return res.status(404).json({ success: false, message: 'Not found' });
+	res.json({ success: true, data: record });
 }));
 
 router.put('/:id', requireAuth, validate(UpdateCourse), asyncHandler(async (req, res) => {
 	const id = Number(req.params.id);
-		await (db as any).update(courses).set(req.body as any).where(eq((courses as any).id, id));
+		await db.update(courses).set(req.body as any).where(eq(courses.id, id)).execute();
 	res.json({ success: true, message: 'Updated' });
 }));
 
 router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
 	const id = Number(req.params.id);
-		await (db as any).delete(courses).where(eq((courses as any).id, id));
+		await db.delete(courses).where(eq(courses.id, id)).execute();
 	res.json({ success: true, message: 'Deleted' });
 }));
 

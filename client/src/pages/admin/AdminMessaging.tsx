@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import logger from '@/lib/logger';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -113,7 +114,7 @@ export default function AdminMessaging() {
         description: `Sent: ${data.sent}, Failed: ${data.failed}`,
       });
       if (data.errors && data.errors.length > 0) {
-        console.error('Send errors:', data.errors);
+        logger.error('Send errors:', data.errors);
       }
       setMessage('');
       setImageUrl('');

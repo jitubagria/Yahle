@@ -1,0 +1,32 @@
+import type { Express, Request, Response } from 'express';
+import { createServer, Server } from 'http';
+
+// Minimal routes registry — stubs only. Keeps parsing and tests predictable.
+export async function registerRoutes(app: Express): Promise<Server> {
+  app.use((req: Request, _res: Response, next) => {
+    // Ensure JSON bodies are parsed when content-type is application/json
+    // Most apps provide body-parser; this is a safe no-op guard for tests.
+    try {
+      if (req.headers['content-type']?.includes('application/json') && typeof (req as any).body === 'string') {
+        (req as any).body = JSON.parse((req as any).body);
+      }
+    } catch (_) {
+      // ignore parse errors; handlers will validate input
+    }
+    next();
+  });
+
+  app.get('/health', (_req: Request, res: Response) => res.json({ status: 'ok', uptime: process.uptime(), ts: new Date().toISOString() }));
+
+  // Lightweight stubs used by integration tests and dev tooling
+  app.get('/api/auth', (_req: Request, res: Response) => res.json({ message: 'auth endpoint (stub)' }));
+  app.get('/api/npa-automation', (_req: Request, res: Response) => res.json({ message: 'npa-automation endpoint (stub)' }));
+  app.get('/api/courses', (_req: Request, res: Response) => res.json({ data: [] }));
+  app.get('/api/jobs', (_req: Request, res: Response) => res.json({ data: [] }));
+  app.get('/api/quizzes', (_req: Request, res: Response) => res.json({ data: [] }));
+  app.get('/api/research', (_req: Request, res: Response) => res.json({ data: [] }));
+
+  const server = createServer();
+  server.on('request', app as any);
+  return server;
+}

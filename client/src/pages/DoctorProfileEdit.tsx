@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import logger from '@/lib/logger';
 import { useRoute, useLocation } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import type { DoctorProfile as DoctorProfileModel } from '../types/models';
@@ -152,7 +153,7 @@ export default function DoctorProfileEdit() {
       setShowCropper(false);
       toast({ title: 'Success', description: 'Images uploaded successfully' });
     } catch (error) {
-      console.error('Image upload error:', error);
+      logger.error('Image upload error:', error);
       toast({ title: 'Error', description: 'Failed to upload images', variant: 'destructive' });
     }
   };

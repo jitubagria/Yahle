@@ -1,7 +1,9 @@
 import { Jimp, loadFont, HorizontalAlign } from 'jimp';
 import { db } from "../db";
 import { entityTemplates, certificates, users } from "../../drizzle/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
+import { insertAndFetch, updateAndReturn } from '../core/dbHelpers';
+import logger from '../lib/logger';
 
 interface CertificateData {
   userId: number;
@@ -62,7 +64,7 @@ export async function generateCertificate(data: CertificateData): Promise<string
       .limit(1);
 
     if (!template) {
-      console.log(`No certificate template found for ${data.entityType} ${data.entityId}`);
+      logger.info(`No certificate template found for ${data.entityType} ${data.entityId}`);
       return null;
     }
 
@@ -171,13 +173,14 @@ export async function generateCertificate(data: CertificateData): Promise<string
     const outputUrl = `data:image/jpeg;base64,${base64}`;
 
     // Save certificate record
-    const { insertAndFetch } = await import('../dbHelpers');
     const cert = await insertAndFetch(db, certificates, {
       entityType: data.entityType,
       entityId: data.entityId,
       userId: data.userId,
-      fileUrl: template.backgroundImage,
-      certificateUrl: outputUrl,
+      backgroundImage: template.backgroundImage,
+      outputUrl: outputUrl,
+      name: data.userName,
+      title: data.title,
     });
 
     // Send via WhatsApp using BigTos API
@@ -193,19 +196,19 @@ export async function generateCertificate(data: CertificateData): Promise<string
         await bigtosService.sendTextImage(phoneNumber, message, outputUrl);
         
         // Update sent status
-        await db.update(certificates)
-          .set({ issuedAt: new Date() })
-          .where(eq(certificates.id, cert.id));
+        if (cert) {
+          await updateAndReturn(db, certificates, eq(certificates.id, (cert as any).id), { sentAt: sql`CURRENT_TIMESTAMP` });
+        }
         
-        console.log(`Certificate sent to ${phoneNumber} via WhatsApp`);
+        logger.info({ phoneNumber, certId: (cert as any).id }, `Certificate sent to ${phoneNumber} via WhatsApp`);
       } catch (error) {
-        console.error('Failed to send WhatsApp certificate:', error);
+        logger.error({ err: error }, 'Failed to send WhatsApp certificate:');
       }
     }
 
     return outputUrl;
   } catch (error) {
-    console.error('Certificate generation error:', error);
+    logger.error({ err: error }, 'Certificate generation error:');
     throw error;
   }
 }

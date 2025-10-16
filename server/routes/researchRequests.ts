@@ -8,6 +8,7 @@ import { validate } from '../../lib/validate';
 import { parsePagination } from '../../lib/pagination';
 import { requireAuth } from '../../lib/auth';
 import { sql } from 'drizzle-orm';
+import { insertAndFetch, updateAndReturn, deleteAndReturn } from '../core/dbHelpers';
 
 const router = Router();
 
@@ -16,8 +17,7 @@ const CreateRequest = z.object({ userId: z.number(), title: z.string(), details:
 const UpdateRequest = CreateRequest.partial();
 
 router.post('/', requireAuth, validate(CreateRequest), asyncHandler(async (req, res) => {
-	const { insertAndFetch } = await import('../dbHelpers');
-	const record = await insertAndFetch(db as any, researchRequests as any, req.body);
+	const record = await insertAndFetch(db, researchRequests, req.body as any);
 	res.status(201).json({ success: true, data: record, message: 'Research request created' });
 }));
 
@@ -31,20 +31,20 @@ router.get('/', validate(ListQuery, 'query'), asyncHandler(async (req, res) => {
 
 router.get('/:id', asyncHandler(async (req, res) => {
 	const id = Number(req.params.id);
-	const record = await db.select().from(researchRequests).where(eq(researchRequests.id, id)).limit(1);
-	if (!record || record.length === 0) return res.status(404).json({ success: false, message: 'Not found' });
-	res.json({ success: true, data: record[0] });
+	const [record] = await db.select().from(researchRequests).where(eq(researchRequests.id, id)).limit(1);
+	if (!record) return res.status(404).json({ success: false, message: 'Not found' });
+	res.json({ success: true, data: record });
 }));
 
 router.put('/:id', requireAuth, validate(UpdateRequest), asyncHandler(async (req, res) => {
 	const id = Number(req.params.id);
-	await db.update(researchRequests).set(req.body).where(eq(researchRequests.id, id));
+	 await updateAndReturn(db, researchRequests, eq(researchRequests.id, id), req.body as any);
 	res.json({ success: true, message: 'Updated' });
 }));
 
 router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
 	const id = Number(req.params.id);
-	await db.delete(researchRequests).where(eq(researchRequests.id, id));
+	 await deleteAndReturn(db, researchRequests, eq(researchRequests.id, id));
 	res.json({ success: true, message: 'Deleted' });
 }));
 

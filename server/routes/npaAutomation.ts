@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import express from 'express';
 import { z } from 'zod';
 import { db } from '../../lib/db';
 import { npaAutomation } from '../../drizzle/schema';
@@ -9,12 +9,22 @@ import { validate } from '../../lib/validate';
 import { parsePagination } from '../../lib/pagination';
 import { requireAuth } from '../../lib/auth';
 
-const router = Router();
+const router = express.Router();
 
 const ListQuery = z.object({ page: z.coerce.number().int().min(1).default(1).optional(), pageSize: z.coerce.number().int().min(1).max(100).default(20).optional() });
 const CreateNPA = z.object({ userId: z.number(), month: z.string(), status: z.string().optional() });
 const UpdateNPA = CreateNPA.partial();
 
+
+// 👇 Base route handler
+router.get('/', (req, res) => {
+  res.json({
+    message: 'NPA Automation API operational ✅',
+    availableEndpoints: ['/generate', '/schedule', '/preview']
+  });
+});
+
+// Existing POST route for creating NPA automation
 router.post('/', requireAuth, validate(CreateNPA), asyncHandler(async (req, res) => {
 	const payload = req.body;
 	const insertRes: any = await db.insert(npaAutomation).values(payload).execute();

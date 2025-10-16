@@ -80,6 +80,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     app.get('/api/npa-automation', (_req: Request, res: Response) => res.json({ message: 'npa-automation endpoint (stub)' }));
   }
 
+  try {
+    // course-modules
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const courseModulesRouter = require('./modules/courseModules/routes').default;
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const authMiddleware = require('./middleware/auth').verifyToken;
+  app.use('/api/course-modules', authMiddleware, courseModulesRouter);
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const logger = require('./lib/logger').default;
+    logger.debug('Mounted /api/course-modules routes');
+  } catch (err) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const logger = require('./lib/logger').default;
+    logger.error({ err }, 'Failed to mount course-modules router');
+    app.get('/api/course-modules', (_req: Request, res: Response) => res.json({ message: 'course-modules endpoint (stub)' }));
+  }
+
+  try {
+    // enrollments
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const enrollmentsRouter = require('./modules/enrollments/routes').default;
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const authMiddleware = require('./middleware/auth').verifyToken;
+  app.use('/api/enrollments', authMiddleware, enrollmentsRouter);
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const logger = require('./lib/logger').default;
+    logger.debug('Mounted /api/enrollments routes');
+  } catch (err) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const logger = require('./lib/logger').default;
+    logger.error({ err }, 'Failed to mount enrollments router');
+    app.get('/api/enrollments', (_req: Request, res: Response) => res.json({ message: 'enrollments endpoint (stub)' }));
+  }
+
+  try {
+    // job-applications
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const jobApplicationsRouter = require('./modules/jobApplications/routes').default;
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const authMiddleware = require('./middleware/auth').verifyToken;
+  app.use('/api/job-applications', authMiddleware, jobApplicationsRouter);
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const logger = require('./lib/logger').default;
+    logger.debug('Mounted /api/job-applications routes');
+  } catch (err) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const logger = require('./lib/logger').default;
+    logger.error({ err }, 'Failed to mount job-applications router');
+    app.get('/api/job-applications', (_req: Request, res: Response) => res.json({ message: 'job-applications endpoint (stub)' }));
+  }
+
   // courses and jobs routers are not present as modular route files in
   // server/modules; keep lightweight stubs to preserve existing behavior.
   app.get('/api/courses', (_req: Request, res: Response) => res.json({ data: [] }));

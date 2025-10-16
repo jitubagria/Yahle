@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { npaService } from './npaService';
+import logger from './lib/logger';
 
 /**
  * NPA Certificate Automation Scheduler
@@ -12,15 +13,15 @@ export function initializeNPAScheduler() {
   // Format: minute hour day month weekday
   // '0 3 * * *' = At 3:00 AM every day
   cron.schedule('0 3 * * *', async () => {
-    console.log('[NPA Scheduler] Starting daily NPA certificate automation...');
+    logger.info('[NPA Scheduler] Starting daily NPA certificate automation...');
     
     try {
       const result = await npaService.runDailyAutomation();
-      console.log(`[NPA Scheduler] Automation complete: ${result.success} successful, ${result.failed} failed out of ${result.total} total`);
+      logger.info({ result }, `[NPA Scheduler] Automation complete: ${result.success} successful, ${result.failed} failed out of ${result.total} total`);
     } catch (error) {
-      console.error('[NPA Scheduler] Error running daily automation:', error);
+      logger.error({ err: error }, '[NPA Scheduler] Error running daily automation:');
     }
   });
 
-  console.log('[NPA Scheduler] Initialized - will run daily at 3:00 AM');
+  logger.info('[NPA Scheduler] Initialized - will run daily at 3:00 AM');
 }

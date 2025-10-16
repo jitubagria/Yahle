@@ -8,6 +8,7 @@ import { validate } from '../../lib/validate';
 import { parsePagination } from '../../lib/pagination';
 import { requireAuth } from '../../lib/auth';
 import { sql } from 'drizzle-orm';
+import { insertAndFetch, updateAndReturn, deleteAndReturn } from '../core/dbHelpers';
 
 const router = Router();
 
@@ -16,8 +17,7 @@ const CreateSetting = z.object({ key: z.string(), value: z.string(), category: z
 const UpdateSetting = CreateSetting.partial();
 
 router.post('/', requireAuth, validate(CreateSetting), asyncHandler(async (req, res) => {
-	const { insertAndFetch } = await import('../dbHelpers');
-	const record = await insertAndFetch(db as any, settings as any, req.body);
+	const record = await insertAndFetch(db, settings, req.body as any);
 	res.status(201).json({ success: true, data: record, message: 'Setting created' });
 }));
 
@@ -31,20 +31,20 @@ router.get('/', validate(ListQuery, 'query'), asyncHandler(async (req, res) => {
 
 router.get('/:id', asyncHandler(async (req, res) => {
 	const id = Number(req.params.id);
-	const record = await db.select().from(settings).where(eq(settings.id, id)).limit(1);
-	if (!record || record.length === 0) return res.status(404).json({ success: false, message: 'Not found' });
-	res.json({ success: true, data: record[0] });
+	const [record] = await db.select().from(settings).where(eq(settings.id, id)).limit(1);
+	if (!record) return res.status(404).json({ success: false, message: 'Not found' });
+	res.json({ success: true, data: record });
 }));
 
 router.put('/:id', requireAuth, validate(UpdateSetting), asyncHandler(async (req, res) => {
 	const id = Number(req.params.id);
-	await db.update(settings).set(req.body).where(eq(settings.id, id));
+	 await updateAndReturn(db, settings, eq(settings.id, id), req.body as any);
 	res.json({ success: true, message: 'Updated' });
 }));
 
 router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
 	const id = Number(req.params.id);
-	await db.delete(settings).where(eq(settings.id, id));
+	 await deleteAndReturn(db, settings, eq(settings.id, id));
 	res.json({ success: true, message: 'Deleted' });
 }));
 

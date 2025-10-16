@@ -38,7 +38,9 @@ export async function logout() {
       credentials: 'include',
     });
   } catch (error) {
-    console.error('Logout error:', error);
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { default: logger } = require('./logger');
+    logger.error('Logout error:', error);
   } finally {
     // Clear client-side session storage
     sessionStorage.removeItem('user');

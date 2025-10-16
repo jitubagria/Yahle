@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import logger from '@/lib/logger';
 import { useMutation } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -115,7 +116,7 @@ export function DoctorImportDialog({ open, onOpenChange }: Props) {
         }
       } catch (err) {
         setParseError('Failed to parse Excel file. Please ensure it has the correct format.');
-        console.error('Excel parse error:', err);
+        logger.error('Excel parse error:', err);
       }
     };
 

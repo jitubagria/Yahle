@@ -1,8 +1,10 @@
 import { db } from "./db";
+import { NPAStatus } from './enums';
 import { npaOptIns, npaTemplates, npaAutomation, users, doctorProfiles } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 import { bigtosService } from "./bigtos";
 import { Storage } from '@google-cloud/storage';
+import logger from './lib/logger';
 import htmlPdfNode from 'html-pdf-node';
 
 const storage = new Storage();
@@ -46,7 +48,7 @@ export class NPAService {
       const pdfBuffer = await htmlPdfNode.generatePdf(file, options);
       return pdfBuffer;
     } catch (error) {
-      console.error('PDF generation error:', error);
+  logger.error({ err: error }, 'PDF generation error');
       throw new Error('Failed to generate PDF');
     }
   }
@@ -74,7 +76,7 @@ export class NPAService {
       // Return public URL
       return `https://storage.googleapis.com/${bucketName}/npa-certificates/${fileName}`;
     } catch (error) {
-      console.error('Storage upload error:', error);
+  logger.error({ err: error }, 'Storage upload error');
       throw new Error('Failed to upload certificate to storage');
     }
   }
@@ -108,9 +110,9 @@ export class NPAService {
         .select()
         .from(npaOptIns)
         .where(and(
-          eq(npaOptIns.id, optInId),
-          eq(npaOptIns.isActive, true)
-        ))
+            eq(npaOptIns.id, optInId),
+            eq(npaOptIns.isActive, 1)
+          ))
         .limit(1);
 
       if (!optIn) {
@@ -157,7 +159,7 @@ export class NPAService {
         [template] = await db
           .select()
           .from(npaTemplates)
-          .where(eq(npaTemplates.isActive, true))
+          .where(eq(npaTemplates.isActive, 1))
           .limit(1);
       }
 
@@ -218,12 +220,12 @@ export class NPAService {
         templateUsed: template.id,
         userId: optIn.userId,
         month: month,
-        status: 'sent',
+  status: NPAStatus.SENT,
         generatedPdfUrl: certificateUrl,
         sentDate: new Date(),
       } as any).execute();
 
-      console.log(`NPA certificate generated and sent for opt-in ${optInId}`);
+  logger.info({ optInId }, `NPA certificate generated and sent for opt-in ${optInId}`);
 
       return {
         success: true,
@@ -231,7 +233,7 @@ export class NPAService {
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`NPA generation error for opt-in ${optInId}:`, errorMessage);
+  logger.error({ optInId, err: errorMessage }, `NPA generation error for opt-in ${optInId}`);
 
       // Log the error
       try {
@@ -257,7 +259,7 @@ export class NPAService {
           lastError: errorMessage,
         } as any).execute();
       } catch (logError) {
-        console.error('Failed to log NPA error:', logError);
+  logger.error({ err: logError }, 'Failed to log NPA error');
       }
 
       return {
@@ -275,7 +277,7 @@ export class NPAService {
     success: number;
     failed: number;
   }> {
-    console.log('Starting NPA daily automation...');
+  logger.info('Starting NPA daily automation...');
 
     const today = new Date().getDate(); // Day of month (1-31)
 
@@ -284,11 +286,11 @@ export class NPAService {
       .select()
       .from(npaOptIns)
       .where(and(
-        eq(npaOptIns.isActive, true),
-        eq(npaOptIns.preferredDay, String(today))
+        eq(npaOptIns.isActive, 1),
+        eq(npaOptIns.preferredDay, today)
       ));
 
-    console.log(`Found ${optIns.length} opt-ins scheduled for day ${today}`);
+  logger.info({ count: optIns.length, day: today }, `Found ${optIns.length} opt-ins scheduled for day ${today}`);
 
     let successCount = 0;
     let failedCount = 0;
@@ -302,7 +304,7 @@ export class NPAService {
       }
     }
 
-    console.log(`NPA automation complete: ${successCount} success, ${failedCount} failed`);
+  logger.info({ successCount, failedCount }, `NPA automation complete: ${successCount} success, ${failedCount} failed`);
 
     return {
       total: optIns.length,

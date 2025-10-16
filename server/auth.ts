@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { db } from './db';
 import { users } from '../drizzle/schema';
 import { eq } from 'drizzle-orm';
+import { RoleType } from './enums';
+import logger from './lib/logger';
 
 // Session augmentation is provided in `types/express-session.d.ts` (global types)
 
@@ -33,7 +35,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     (req as any).authenticatedUser = user;
     next();
   } catch (error) {
-    console.error('Auth middleware error:', error);
+    logger.error({ err: error }, 'Auth middleware error:');
     res.status(401).json({ error: 'Authentication failed' });
   }
 }
@@ -68,7 +70,7 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
       return res.status(401).json({ error: 'Invalid authentication' });
     }
 
-    if (user.role !== 'admin') {
+    if (user.role !== RoleType.ADMIN) {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
@@ -76,7 +78,7 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
     (req as any).authenticatedUser = user;
     next();
   } catch (error) {
-    console.error('Admin auth middleware error:', error);
+    logger.error({ err: error }, 'Admin auth middleware error:');
     res.status(403).json({ error: 'Authorization failed' });
   }
 }

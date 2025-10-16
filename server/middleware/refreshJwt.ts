@@ -55,7 +55,7 @@ async function tryRefresh(
     const rows = await db
       .select()
       .from(userSessions)
-      .where(and(eq(userSessions.refreshToken, refreshToken), eq(userSessions.isActive, true)));
+      .where(and(eq(userSessions.refreshToken, refreshToken), eq(userSessions.isActive, 1)));
 
     if (!rows.length) return res.status(401).json({ error: "Refresh token revoked or invalid" });
 

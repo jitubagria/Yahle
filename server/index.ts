@@ -2,54 +2,65 @@ import 'dotenv/config';
 import 'express-session';
 import createApp from './app';
 import { ENV } from '../lib/env';
-import { requestLogger } from '../lib/logger';
+import { createServer } from 'http';
+import requestLogger from '../lib/logger';
+import logger from './lib/logger';
 import type { Request, Response, NextFunction } from 'express';
-import { registerRoutes } from './routes';
+// Use temporary clean routes implementation while fixing server/routes.ts
+import { registerRoutes } from './routes_clean';
 import { setupVite, serveStatic, log } from './vite';
 import { setupWebSocket } from './liveQuiz';
 import { initializeNPAScheduler } from './npaScheduler';
 
-const app = createApp();
-
 // Attach small request logger middleware for API-specific logging
-app.use((req: Request, res: Response, next: NextFunction) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+// createApp is async; initialize app inside start()
 
-  const originalResJson = res.json;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  res.json = function (bodyJson: any, ..._args: any[]) {
-    capturedJsonResponse = bodyJson;
-    // call with the primary body argument to satisfy the Response.json signature
-    return originalResJson.call(res, bodyJson);
-  } as typeof res.json;
+let app: any;
 
-  res.on('finish', () => {
-    const duration = Date.now() - start;
-    if (path.startsWith('/api')) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        try {
-          logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-        } catch (_) {
-          // ignore stringify errors
+// Attach small request logger middleware will be applied after app is created
+
+function attachRequestLogger(appInstance: any) {
+  appInstance.use((req: Request, res: Response, next: NextFunction) => {
+    const start = Date.now();
+    const path = req.path;
+    let capturedJsonResponse: Record<string, any> | undefined = undefined;
+
+    const originalResJson = res.json;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    res.json = function (bodyJson: any, ..._args: any[]) {
+      capturedJsonResponse = bodyJson;
+      // call with the primary body argument to satisfy the Response.json signature
+      return originalResJson.call(res, bodyJson);
+    } as typeof res.json;
+
+    res.on('finish', () => {
+      const duration = Date.now() - start;
+      if (path.startsWith('/api')) {
+        let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+        if (capturedJsonResponse) {
+          try {
+            logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+          } catch (_) {
+            // ignore stringify errors
+          }
         }
-      }
 
-      if (logLine.length > 120) {
-        logLine = logLine.slice(0, 119) + '…';
-      }
+        if (logLine.length > 120) {
+          logLine = logLine.slice(0, 119) + '…';
+        }
 
-      log(logLine);
-    }
+        log(logLine);
+      }
+    });
+
+    next();
   });
-
-  next();
-});
+}
 
 async function start() {
-  const server = await registerRoutes(app);
+  app = await createApp();
+  attachRequestLogger(app);
+  const server = createServer(app as any);
 
   // Setup WebSocket for live quizzes
   const { io, startLiveQuiz } = setupWebSocket(server);
@@ -64,38 +75,36 @@ async function start() {
       const { quizzes } = await import('../drizzle/schema');
       const { and, lte, eq } = await import('drizzle-orm');
 
-      // Quiz status mapping for clarity
-      const QUIZ_STATUS = {
-        DRAFT: 'draft',
-        ACTIVE: 'active',
-        ARCHIVED: 'archived',
-      };
+      // Quiz status mapping for clarity (centralized)
+  const { QUIZ_STATUS } = await import('../src/types/enums');
+  const { QuizStatus } = await import('./enums');
 
       const now = new Date();
+      const nowStr = now.toISOString();
       const quizzesToStart = await db.select().from(quizzes).where(
-        and(lte(quizzes.startTime, now), eq(quizzes.status, QUIZ_STATUS.DRAFT))
+  and(lte(quizzes.startTime, nowStr), eq(quizzes.status, QuizStatus.DRAFT))
       );
 
       for (const quiz of quizzesToStart) {
         try {
-          await db.update(quizzes).set({ status: QUIZ_STATUS.ACTIVE }).where(eq(quizzes.id, quiz.id));
+          await db.update(quizzes).set({ status: QuizStatus.ACTIVE }).where(eq(quizzes.id, quiz.id));
           const roomName = `quiz-${quiz.id}`;
           io.to(roomName).emit('quiz:auto-start', { quizId: quiz.id, title: quiz.title, message: 'Quiz is starting automatically...' });
           startLiveQuiz(quiz.id).catch(async (err: Error) => {
-            console.error(`Auto-start orchestration error for quiz ${quiz.id}:`, err);
+            logger.error({ err, quizId: quiz.id }, `Auto-start orchestration error for quiz ${quiz.id}:`);
             try {
-              await db.update(quizzes).set({ status: QUIZ_STATUS.DRAFT }).where(eq(quizzes.id, quiz.id));
+              await db.update(quizzes).set({ status: QuizStatus.DRAFT }).where(eq(quizzes.id, quiz.id));
             } catch (revertErr) {
-              console.error(`Failed to revert quiz ${quiz.id} status:`, revertErr);
+              logger.error({ err: revertErr, quizId: quiz.id }, `Failed to revert quiz ${quiz.id} status:`);
             }
           });
         } catch (err) {
-          console.error(`Failed to auto-start quiz ${quiz.id}:`, err);
+          logger.error({ err, quizId: quiz.id }, `Failed to auto-start quiz ${quiz.id}:`);
         }
       }
     } catch (error) {
       // non-fatal, scheduler should not crash the server
-      console.error('Auto-start scheduler error (non-fatal):', error);
+      logger.error({ err: error }, 'Auto-start scheduler error (non-fatal):');
     }
   }
 
@@ -106,7 +115,7 @@ async function start() {
   try {
     initializeNPAScheduler();
   } catch (err) {
-    console.error('NPA scheduler initialization error (non-fatal):', err);
+    logger.error({ err }, 'NPA scheduler initialization error (non-fatal):');
   }
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -129,12 +138,12 @@ async function start() {
   server.listen(port, host, () => {
     log(`✅ Server running at http://${host}:${port}`);
     if (process.env.NODE_ENV !== 'production') {
-      console.log('✅ Connected to DB:', process.env.DATABASE_URL?.split('@')[1] ?? 'unknown');
+      logger.info('✅ Connected to DB:', { db: process.env.DATABASE_URL?.split('@')[1] ?? 'unknown' });
     }
   });
 }
 
 start().catch((err) => {
-  console.error('Failed to start server:', err);
+  logger.error({ err }, 'Failed to start server:');
   process.exit(1);
 });
